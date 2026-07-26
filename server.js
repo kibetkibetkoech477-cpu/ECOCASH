@@ -155,7 +155,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const chatId = callback_query.message.chat.id;
     const messageId = callback_query.message.message_id;
 
-    // Security check: Only allow Main Admin (ADMIN_1) to control/change payment statuses
     const ADMINS = getAdmins();
     const mainAdmin = ADMINS.find(a => a.isMain);
     const isMainAdmin = mainAdmin && String(mainAdmin.chatId) === String(chatId);
@@ -352,3 +351,4 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    
