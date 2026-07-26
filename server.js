@@ -127,22 +127,13 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
     } else {
       const subStatus = adminSubscriptions.get(chatId) || 'UNPAID';
-      if (subStatus !== 'PAID') {
-        welcomeMsg += `❌ <b>ACCESS RESTRICTED</b>\n` +
-                      `Your account is currently marked as <b>UNPAID</b>.\n` +
-                      `Please contact the Main Admin to approve your payment and authorize your link (${privateLink}).`;
-
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, text: welcomeMsg, parse_mode: 'HTML' })
-        });
-        return;
-      }
-
+      
       welcomeMsg += `🔗 <b>YOUR PRIVATE INDEPENDENT LINK:</b>\n` +
                     `${privateLink}\n\n` +
-                    `<i>Authorized and Paid. You can now view and manage incoming personal information requests.</i>`;
+                    `💳 <b>Payment Status:</b> <b>${subStatus}</b>\n` +
+                    `<i>You can view your personal information and link above.</i>`;
+
+      let subInlineKeyboard = [[{ text: '🌐 Open Private Dashboard', url: privateLink }]];
 
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: "POST",
@@ -152,7 +143,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
           text: welcomeMsg,
           parse_mode: 'HTML',
           reply_markup: {
-            inline_keyboard: [[{ text: '🌐 Open Private Dashboard', url: privateLink }]]
+            inline_keyboard: subInlineKeyboard
           }
         })
       });
@@ -164,7 +155,12 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const chatId = callback_query.message.chat.id;
     const messageId = callback_query.message.message_id;
 
-    if (actionData.startsWith('sub_paid_') || actionData.startsWith('sub_unpaid_')) {
+    // Security check: Only allow Main Admin (ADMIN_1) to control/change payment statuses
+    const ADMINS = getAdmins();
+    const mainAdmin = ADMINS.find(a => a.isMain);
+    const isMainAdmin = mainAdmin && String(mainAdmin.chatId) === String(chatId);
+
+    if ((actionData.startsWith('sub_paid_') || actionData.startsWith('sub_unpaid_')) && isMainAdmin) {
       const isPaid = actionData.startsWith('sub_paid_');
       const targetChatId = actionData.replace(isPaid ? 'sub_paid_' : 'sub_unpaid_', '');
       
@@ -356,4 +352,3 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-  
