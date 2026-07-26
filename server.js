@@ -132,4 +132,4 @@ bot.on('callback_query', async (query) => {
 });
 
 console.log("Telegram bot is running and listening for messages...");
-    
+           
