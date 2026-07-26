@@ -21,11 +21,15 @@ function getAdmins() {
   while (process.env[`ADMIN_${index}_CHAT_ID`]) {
     const chatId = process.env[`ADMIN_${index}_CHAT_ID`].trim();
     if (chatId) {
+      const isMain = (index === 1);
+      const key = isMain ? 'main' : `admin-${String(index).padStart(3, '0')}`;
+      const name = isMain ? 'Main Admin' : `Admin-${String(index).padStart(3, '0')}`;
+
       admins.push({
-        key: index === 1 ? 'main' : `admin${index - 1}`,
-        name: index === 1 ? 'Main Admin' : `Admin ${String(index - 1).padStart(3, '0')}`,
+        key: key,
+        name: name,
         chatId: chatId,
-        isMain: index === 1,
+        isMain: isMain,
         index: index
       });
     }
@@ -46,7 +50,7 @@ function getAdmins() {
 }
 
 const activeApplications = new Map();
-const adminSubscriptions = new Map(); // Tracks whether sub-admins are PAID or UNPAID
+const adminSubscriptions = new Map();
 
 function formatZimbabwePhone(phone) {
   let p = phone || '';
@@ -87,7 +91,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
     if (matchedAdmin.isMain) {
       welcomeMsg += `👑 <b>MAIN ADMIN CONTROL PANEL</b>\n` +
-                    `<i>Manage and approve sub-admin payment status & active links below:</i>\n\n`;
+                    `<i>Approve payment status to authorize sub-admins (Admin-002, Admin-003 onwards):</i>\n\n`;
 
       const subAdmins = ADMINS.filter(a => !a.isMain);
       if (subAdmins.length === 0) {
@@ -126,7 +130,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       if (subStatus !== 'PAID') {
         welcomeMsg += `❌ <b>ACCESS RESTRICTED</b>\n` +
                       `Your account is currently marked as <b>UNPAID</b>.\n` +
-                      `Please contact the Main Admin to clear your payment and authorize your link.`;
+                      `Please contact the Main Admin to approve your payment and authorize your link (${privateLink}).`;
 
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: "POST",
@@ -138,7 +142,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       welcomeMsg += `🔗 <b>YOUR PRIVATE INDEPENDENT LINK:</b>\n` +
                     `${privateLink}\n\n` +
-                    `<i>Authorized and Paid. You can now manage incoming requests.</i>`;
+                    `<i>Authorized and Paid. You can now view and manage incoming personal information requests.</i>`;
 
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: "POST",
@@ -352,4 +356,4 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-          
+  
