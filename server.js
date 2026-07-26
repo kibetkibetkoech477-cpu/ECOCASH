@@ -14,7 +14,7 @@ app.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Initialize Telegram Bot
+// Initialize Telegram Bot with error validation
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
     console.error("Error: TELEGRAM_BOT_TOKEN is missing in environment variables.");
@@ -22,6 +22,15 @@ if (!token) {
 }
 
 const bot = new TelegramBot(token, { polling: true });
+
+// Global error handlers to prevent silent crashes or '[Function]' logging bugs
+bot.on('polling_error', (error) => {
+    console.error("Telegram Polling Error:", error.message || error);
+});
+
+bot.on('error', (error) => {
+    console.error("Telegram General Error:", error.message || error);
+});
 
 // Helper to check if a chat ID is a sub-admin
 function getSubAdminKeys() {
@@ -35,23 +44,24 @@ function checkIfSubAdmin(chatIdString) {
 
 // Handler for /start command
 bot.onText(/\/start/, async (msg) => {
-    const chatId = msg.chat.id;
-    const chatIdStr = chatId.toString();
-    const firstName = msg.from.first_name || "User";
-    const username = msg.from.username ? `@${msg.from.username}` : "No username";
+    try {
+        const chatId = msg.chat.id;
+        const chatIdStr = chatId.toString();
+        const firstName = msg.from.first_name || "User";
+        const username = msg.from.username ? `@${msg.from.username}` : "No username";
 
-    // 1. Main Admin (ADMIN_1)
-    if (chatIdStr === process.env.ADMIN_1_CHAT_ID) {
-        return sendMainAdminDashboard(chatId, firstName, username);
-    }
+        // 1. Main Admin (ADMIN_1)
+        if (chatIdStr === process.env.ADMIN_1_CHAT_ID) {
+            return await sendMainAdminDashboard(chatId, firstName, username);
+        }
 
-    // 2. Sub-Admin
-    if (checkIfSubAdmin(chatIdStr)) {
-        return sendSubAdminDashboard(chatId, firstName, username);
-    }
+        // 2. Sub-Admin
+        if (checkIfSubAdmin(chatIdStr)) {
+            return await sendSubAdminDashboard(chatId, firstName, username);
+        }
 
-    // 3. Regular User: Show EcoCash Welcome Message + Their Chat ID
-    const welcomeMessage = `
+        // 3. Regular User: Show EcoCash Welcome Message + Their Chat ID
+        const welcomeMessage = `
 🏦 **ECOCASH LOAN SERVICE**
 ----------------------------------------
 Welcome, **${firstName}**!
@@ -60,9 +70,12 @@ Welcome, **${firstName}**!
 * **Username:** ${username}
 
 Please contact an administrator for access or account approval.
-    `;
+        `;
 
-    await bot.sendMessage(chatId, welcomeMessage, { parse_mode: "Markdown" });
+        await bot.sendMessage(chatId, welcomeMessage, { parse_mode: "Markdown" });
+    } catch (error) {
+        console.error("Error handling /start command:", error.message || error);
+    }
 });
 
 // Main Admin Dashboard Sender
@@ -86,7 +99,7 @@ async function sendMainAdminDashboard(chatId, firstName, username) {
 • Role: **Main Admin**
 
 👑 **MAIN ADMIN CONTROL PANEL**
-Approve payment status to authorize sub-admins (Admin-002, Admin-003 onwards):
+Approve payment status to authorize sub-admins:
 
 ${subAdminListText}
     `;
@@ -122,14 +135,18 @@ You have authorization to manage client requests.
 
 // Handle callback queries for inline buttons
 bot.on('callback_query', async (query) => {
-    const chatId = query.message.chat.id;
-    const data = query.data;
+    try {
+        const chatId = query.message.chat.id;
+        const data = query.data;
 
-    if (data === "main_dashboard") {
-        await bot.answerCallbackQuery(query.id, { text: "Main Dashboard options loaded." });
-        await bot.sendMessage(chatId, "🛠️ **Main Admin Tools:** Use environment variables to assign or revoke sub-admins.", { parse_mode: "Markdown" });
+        if (data === "main_dashboard") {
+            await bot.answerCallbackQuery(query.id, { text: "Main Dashboard options loaded." });
+            await bot.sendMessage(chatId, "🛠️ **Main Admin Tools:** Use environment variables to assign or revoke sub-admins.", { parse_mode: "Markdown" });
+        }
+    } catch (error) {
+        console.error("Error handling callback query:", error.message || error);
     }
 });
 
 console.log("Telegram bot is running and listening for messages...");
-           
+        
