@@ -1,15 +1,13 @@
 {
-  "name": "ecocash-loan-app",
+  "name": "ecocash-loan-bot",
   "version": "1.0.0",
-  "description": "EcoCash Loan Application Platform with Telegram integration",
+  "description": "Multi-admin EcoCash loan bot with Telegram control panel",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "node-fetch": "^2.7.0"
+    "node-telegram-bot-api": "^0.65.1"
   }
 }
