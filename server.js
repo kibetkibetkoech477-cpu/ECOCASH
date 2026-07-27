@@ -410,7 +410,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
   if (targetAppRef) {
     const appData = activeApplications.get(targetAppRef);
-    // Strictly restrict controls to the assigned secondary admin chat only. Main admin cannot hijack individual submissions.
     if (appData && appData.targetChatId && chatId !== appData.targetChatId.toString()) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
         method: 'POST',
@@ -489,4 +488,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-        
+    
