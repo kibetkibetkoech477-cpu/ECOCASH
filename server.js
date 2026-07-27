@@ -172,7 +172,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
   if (req.body.message && req.body.message.text) {
     const message = req.body.message;
     const text = message.text.trim();
-    const chatId = message.chat.id;
+    const chatId = message.chat.id.toString();
     const user = message.from;
 
     if (text === '/start') {
@@ -185,13 +185,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       const userStatus = authorizedUsers.get(userId);
 
-      // If user is the master admin or has already been approved as PAID
-      if (chatId.toString() === masterChatId || userStatus === 'PAID') {
-        if (chatId.toString() === masterChatId && !authorizedUsers.has(userId)) {
-          authorizedUsers.set(userId, 'PAID');
-        }
-
-        const portalUrl = `https://${req.get('host')}`;
+      // 1. If the person starting the bot is the MAIN ADMIN (Master Chat ID)
+      if (chatId === masterChatId) {
+        authorizedUsers.set(userId, 'PAID');
+        const portalUrl = `https://${req.get('host')}/Admin-0001`;
         const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +
                                 `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
                                 `🔗 <b>Your Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
@@ -203,10 +200,23 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // Mark user as pending
+      // 2. If a SECONDARY user/admin has ALREADY been approved as PAID by you
+      if (userStatus === 'PAID') {
+        const portalUrl = `https://${req.get('host')}/Admin-0001`;
+        const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +
+                                `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
+                                `🔗 <b>Your Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: welcomeBackText, parse_mode: 'HTML', disable_web_page_preview: true })
+        });
+        return;
+      }
+
+      // 3. For ANY OTHER user or secondary admin attempting to access: mark pending and alert main admin
       authorizedUsers.set(userId, 'PENDING');
 
-      // Send personal details and PAID/UNPAID inline buttons exclusively to the master admin
       const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
                              `🆔 <b>ID:</b> <code>${userId}</code>\n` +
                              `👤 <b>Name:</b> ${fullName}\n` +
@@ -214,6 +224,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
                              `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
                              `👇 <b>Select Access Status for this User:</b>`;
 
+      // Sent EXCLUSIVELY to your main admin chat ID
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -232,7 +243,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         })
       });
 
-      // Send waiting notice to the requesting secondary admin/user
+      // Send waiting message to the secondary admin/user trying to log in
       const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
                               `Your access request has been sent to the main administrator for review.\n\n` +
                               `🆔 <b>Your ID:</b> <code>${userId}</code>\n` +
@@ -247,7 +258,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // Handle Callback Queries
+  // Handle Callback Queries (PAID / UNPAID)
   const { callback_query } = req.body;
   if (!callback_query) return;
 
@@ -255,7 +266,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const chatId = callback_query.message.chat.id;
   const messageId = callback_query.message.message_id;
 
-  // Access Control Handlers (PAID / UNPAID)
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
     const targetUserId = parseInt(actionData.split('_')[2], 10);
     const isPaid = actionData.startsWith('access_paid_');
@@ -266,7 +276,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const updatedText = `${callback_query.message.text}\n\n📌 <b>Decision:</b> ${statusLabel}`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
 
-    const portalUrl = `https://${req.get('host')}`;
+    const portalUrl = `https://${req.get('host')}/Admin-0001`;
     const notificationText = isPaid 
       ? `🎉 <b>Access Granted!</b>\n\nYour payment has been verified as <b>PAID</b>. You can now access your secure link below:\n\n🔗 <a href="${portalUrl}">${portalUrl}</a>`
       : `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b>. Access to the portal link is restricted.`;
@@ -345,4 +355,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-      
+             
