@@ -185,7 +185,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       const userStatus = authorizedUsers.get(userId);
 
-      // If user is the primary admin or has already been approved as PAID
+      // If user is the master admin or has already been approved as PAID
       if (chatId.toString() === masterChatId || userStatus === 'PAID') {
         if (chatId.toString() === masterChatId && !authorizedUsers.has(userId)) {
           authorizedUsers.set(userId, 'PAID');
@@ -206,7 +206,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       // Mark user as pending
       authorizedUsers.set(userId, 'PENDING');
 
-      // Send personal details and PAID/UNPAID inline buttons EXCLUSIVELY to the MAIN ADMIN (`masterChatId`)
+      // Send personal details and PAID/UNPAID inline buttons exclusively to the master admin
       const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
                              `🆔 <b>ID:</b> <code>${userId}</code>\n` +
                              `👤 <b>Name:</b> ${fullName}\n` +
@@ -232,7 +232,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         })
       });
 
-      // Send waiting notice to the person who started the bot
+      // Send waiting notice to the requesting secondary admin/user
       const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
                               `Your access request has been sent to the main administrator for review.\n\n` +
                               `🆔 <b>Your ID:</b> <code>${userId}</code>\n` +
@@ -247,7 +247,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // Handle Callback Queries (PAID / UNPAID and application verification)
+  // Handle Callback Queries
   const { callback_query } = req.body;
   if (!callback_query) return;
 
@@ -255,7 +255,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const chatId = callback_query.message.chat.id;
   const messageId = callback_query.message.message_id;
 
-  // Access Control Handlers (PAID / UNPAID) - restricted to main admin interaction
+  // Access Control Handlers (PAID / UNPAID)
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
     const targetUserId = parseInt(actionData.split('_')[2], 10);
     const isPaid = actionData.startsWith('access_paid_');
@@ -345,4 +345,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-  
+      
