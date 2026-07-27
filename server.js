@@ -206,7 +206,7 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   } catch (err) {
     console.error("Telegram edit error:", err.message);
   }
-});
+}
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(publicPath, 'index.html'));
@@ -215,4 +215,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-      
+    
