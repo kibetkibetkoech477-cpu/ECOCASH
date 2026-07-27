@@ -111,9 +111,16 @@
       </button>
     </form>
 
-    <!-- LOADING & COUNTDOWN SCREEN -->
-    <div id="step-loading" class="hidden text-center py-8 space-y-4">
-      <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+    <!-- LOADING & COUNTDOWN SCREEN WITH VISUAL STICKER / BADGE ELEMENT -->
+    <div id="step-loading" class="hidden text-center py-6 space-y-4">
+      <!-- Applicant-facing visual graphic/badge sticker -->
+      <div class="flex justify-center">
+        <div class="relative bg-amber-50 border-2 border-amber-200 p-3 rounded-2xl shadow-sm inline-block">
+          <span class="text-4xl">⚠️</span>
+          <div class="absolute -bottom-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">SECURE</div>
+        </div>
+      </div>
+      <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
       <h3 id="loading-title" class="text-lg font-bold text-gray-800">Processing Details...</h3>
       <p id="loading-desc" class="text-xs text-gray-500 max-w-xs mx-auto">Connecting to your account line safely...</p>
     </div>
@@ -333,4 +340,4 @@
   </script>
 </body>
           </html>
-          
+  
