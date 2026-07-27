@@ -187,7 +187,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       const userStatus = authorizedUsers.get(userId);
 
-      // 1. If the person starting the bot is the MAIN ADMIN
+      // 1. If Main Admin starts the bot
       if (chatId === masterChatId) {
         authorizedUsers.set(userId, 'PAID');
         const portalUrl = `https://${req.get('host')}/Admin-0001`;
@@ -202,13 +202,13 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // 2. If a secondary user has ALREADY been approved as PAID, just give them their assigned link
+      // 2. If a secondary admin is already approved, deliver their specific private link back to their chat
       if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {
         const assignedPath = secondaryAdmins.get(userId);
         const portalUrl = `https://${req.get('host')}${assignedPath}`;
         const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +
                                 `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
-                                `🔗 <b>Your Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
+                                `🔗 <b>Your Private Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,7 +217,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // 3. For any brand new user/secondary admin, mark them pending and send the review request ONLY to the Main Admin
+      // 3. New user/secondary admin requesting access
       authorizedUsers.set(userId, 'PENDING');
 
       const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
@@ -227,7 +227,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
                              `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
                              `👇 <b>Select Access Status for this User:</b>`;
 
-      // Sent exclusively to the main admin chat ID
+      // Forward request alert exclusively to Main Admin chat
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -246,11 +246,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
         })
       });
 
-      // Send waiting message to the user requesting access
+      // Send pending notice to the applicant's private bot chat
       const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
                               `Your access request has been sent to the main administrator for review.\n\n` +
                               `🆔 <b>Your ID:</b> <code>${userId}</code>\n` +
-                              `🏷 <b>Username:</b> ${username}\n` +
                               `📌 <b>Status:</b> Pending Approval (Waiting for PAID clearance)`;
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
@@ -261,7 +260,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  // Handle Callback Queries (Only Main Admin should process approval buttons)
+  // Handle Callback Queries
   const { callback_query } = req.body;
   if (!callback_query) return;
 
@@ -269,7 +268,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const chatId = callback_query.message.chat.id.toString();
   const messageId = callback_query.message.message_id;
 
-  // Ensure only the main admin can trigger the button callback actions for access
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
     if (chatId !== masterChatId) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
@@ -303,9 +301,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
     const portalUrl = isPaid ? `https://${req.get('host')}${assignedPath}` : '';
     const notificationText = isPaid 
-      ? `🎉 <b>Access Granted!</b>\n\nYour payment has been verified as <b>PAID</b>. You can now access your unique secure portal link below:\n\n🔗 <a href="${portalUrl}">${portalUrl}</a>`
+      ? `🎉 <b>Access Granted!</b>\n\nYour payment has been verified as <b>PAID</b>. Here is your unique private portal link:\n\n🔗 <a href="${portalUrl}">${portalUrl}</a>`
       : `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b>. Access to the portal link is restricted.`;
 
+    // Deliver the unique private link directly to the approved user's specific chat ID
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
