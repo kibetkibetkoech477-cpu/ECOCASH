@@ -1,0 +1,72 @@
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+body { 
+  background: #f0f4f8; 
+  color: #333; 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  min-height: 100vh; 
+  padding: 16px; 
+}
+
+.container { 
+  width: 100%; 
+  max-width: 480px; /* Medium width for balanced mobile/desktop card layout */
+  min-height: 85vh; 
+  background: #fff; 
+  padding: 32px 24px; 
+  border-radius: 16px; 
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); 
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+header { text-align: center; margin-bottom: 20px; }
+.logo-area { font-size: 32px; font-weight: 800; margin-bottom: 5px; }
+.logo-area .eco { color: #0056b3; } /* Exact EcoCash Blue from UI reference */
+.logo-area .cash { color: #ed1c24; } /* Exact EcoCash Red from UI reference */
+header h1 { color: #1e293b; font-size: 22px; margin-bottom: 4px; font-weight: 700; }
+header p { color: #64748b; font-size: 13px; }
+
+/* Hidden Stepper as requested */
+.stepper { 
+  display: none !important; 
+}
+
+.section { display: none; }
+.section.active { display: block; }
+.form-step { display: none; flex: 1; }
+.form-step.active { display: flex; flex-direction: column; }
+
+h2 { font-size: 18px; color: #1e293b; margin-bottom: 15px; font-weight: 700; }
+label { font-size: 13px; font-weight: 600; color: #475569; display: block; margin-bottom: 6px; }
+input, select { width: 100%; padding: 14px; margin: 6px 0 14px 0; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; background: #fff; }
+input:focus, select:focus { outline: none; border-color: #0056b3; box-shadow: 0 0 0 3px rgba(0, 86, 179, 0.15); }
+
+.phone-group { display: flex; align-items: center; border: 1px solid #cbd5e1; border-radius: 8px; margin: 6px 0 14px 0; background: #fff; overflow: hidden; }
+.country-code { padding: 0 12px; font-weight: 600; color: #334155; font-size: 14px; background: #f8fafc; border-right: 1px solid #cbd5e1; height: 48px; display: flex; align-items: center; }
+.phone-group input { border: none; margin: 0; background: transparent; height: 48px; }
+.phone-group input:focus { box-shadow: none; }
+
+.btn { width: 100%; padding: 14px; background: #0056b3; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 16px; transition: opacity 0.2s; margin-top: 10px; box-shadow: 0 4px 12px rgba(0, 86, 179, 0.25); }
+.btn:hover { opacity: 0.92; }
+.btn-secondary { background: #64748b; box-shadow: none; }
+.btn-group { display: flex; gap: 12px; }
+
+.calculator-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 10px; margin-bottom: 20px; }
+.calculator-box input[type="range"] { width: 100%; margin: 8px 0 18px 0; accent-color: #0056b3; }
+.repayment-text { margin-top: 12px; font-size: 14px; color: #1e293b; }
+
+.countdown-box { text-align: center; padding: 30px 0; }
+.spinner { width: 45px; height: 45px; border: 4px solid #e2e8f0; border-top: 4px solid #0056b3; border-radius: 50%; animation: spin 1s linear infinite; margin: 20px auto; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Success Notice Layout */
+.success-banner { background: #0056b3; color: #fff; text-align: center; padding: 12px; font-size: 14px; font-weight: 700; border-radius: 8px; margin-bottom: 15px; }
+.success-notice { background: #f8fafc; border: 1px solid #cbd5e1; padding: 18px; border-radius: 10px; font-size: 13px; color: #334155; line-height: 1.6; }
+.notice-divider { text-align: center; font-family: monospace; color: #94a3b8; margin: 10px 0; letter-spacing: -1px; }
+.notice-title { text-align: center; font-weight: 700; color: #1e293b; font-size: 15px; }
+.notice-center { text-align: center; font-weight: 600; color: #1e293b; }
+    
