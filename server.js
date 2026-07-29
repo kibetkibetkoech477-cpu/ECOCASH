@@ -504,4 +504,17 @@ app.get('*', (req, res) => {
       <title>Page Not Found - EcoCash Portal</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-blue-50/50 flex flex-col items-c
+    <body class="bg-blue-50/50 flex flex-col items-center justify-center min-h-screen p-4">
+      <div class="bg-white rounded-2xl shadow-xl border border-blue-100 w-full max-w-md p-8 text-center space-y-4">
+        <div class="text-4xl">🔍</div>
+        <h1 class="text-2xl font-extrabold text-blue-600">Page Not Found</h1>
+        <p class="text-sm text-slate-600">The page you are looking for does not exist.</p>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 EcoCash Loan Server running on port ${PORT}`);
+});
