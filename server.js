@@ -470,7 +470,7 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   }
 }
 
-// SECURE ROUTE GUARD: Only serve index.html if the /Admin-* path is mapped to an authorized active chat
+// SECURE ROUTE GUARD: Only serve index.html if the path is actually mapped to an active admin chat
 app.get('/Admin-*', (req, res) => {
   const requestedPath = req.path;
   
@@ -493,4 +493,4 @@ app.get('/Admin-*', (req, res) => {
         <h1 class="text-2xl font-extrabold text-red-600">Unauthorized Portal Link</h1>
         <p class="text-sm text-slate-600">This portal link is either invalid, expired, or has not yet been authorized by the administrator.</p>
         <p class="text-xs text-slate-400">Please request a valid link via Telegram.</p>
- 
+      
