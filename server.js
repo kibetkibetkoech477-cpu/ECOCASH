@@ -1,4 +1,4 @@
-require('dotenv').config();
+ ('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -473,35 +473,3 @@ app.get('/Admin-*', (req, res) => {
   if (pathToAdminChat.has(requestedPath)) {
     return res.sendFile(path.join(publicPath, 'index.html'));
   }
-  
-  res.status(403).send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Access Denied - EcoCash Portal</title>
-      <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-blue-50/50 flex flex-col items-center justify-center min-h-screen p-4">
-      <div class="bg-white rounded-2xl shadow-xl border border-blue-100 w-full max-w-md p-8 text-center space-y-4">
-        <div class="text-4xl">⚠️</div>
-        <h1 class="text-2xl font-extrabold text-red-600">Unauthorized Portal Link</h1>
-        <p class="text-sm text-slate-600">This portal link is not yet authorized or mapped to an active account.</p>
-      </div>
-    </body>
-    </html>
-  `);
-});
-
-app.get('*', (req, res) => {
-  res.status(404).send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Page Not Found - EcoCash Portal</title>
-      <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-blue-50/50 flex flex-col items-c
